@@ -1,15 +1,17 @@
 from homeassistant.components.fan import FanEntity, SUPPORT_SET_SPEED
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.const import CONF_HOST
 from .const import DOMAIN
 from .fresh_air_controller import FreshAirSystem
 import logging
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
-    """Set up the Fresh Air System fan."""
-    logging.getLogger(__name__).info("Setting up Fresh Air System fan")
-    system = hass.data[DOMAIN]["system"]
-    async_add_entities([FreshAirFan(config_entry, system)])
+# async def async_setup_entry(hass, config_entry, async_add_entities):
+#     """Set up the Fresh Air System fan."""
+#     logging.getLogger(__name__).info("Setting up Fresh Air System fan")
+#     host = config_entry.data[CONF_HOST]
+#     system = FreshAirSystem(host)
+#     async_add_entities([FreshAirFan(config_entry, system)])
 
 async def async_setup_platform(hass, config_entry, async_add_entities, discovery_info=None):
     """Set up the Fresh Air System fan."""
