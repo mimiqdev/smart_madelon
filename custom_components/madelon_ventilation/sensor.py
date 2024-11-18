@@ -45,7 +45,7 @@ class FreshAirTemperatureSensor(SensorEntity):
 
     def __init__(self, entry: ConfigEntry, system):
         super().__init__()
-        self._attr_unique_id = f"{DOMAIN}_temperature_sensor_{system.id}"
+        self._attr_unique_id = f"{DOMAIN}_temperature_sensor_{system.unique_identifier}"
 
     async def async_update(self):
         self._attr_native_value = self._system.temperature
@@ -58,7 +58,7 @@ class FreshAirHumiditySensor(SensorEntity):
 
     def __init__(self, entry: ConfigEntry, system):
         super().__init__()
-        self._attr_unique_id = f"{DOMAIN}_humidity_sensor_{system.id}"
+        self._attr_unique_id = f"{DOMAIN}_humidity_sensor_{system.unique_identifier}"
 
     async def async_update(self):
         self._attr_native_value = self._system.humidity

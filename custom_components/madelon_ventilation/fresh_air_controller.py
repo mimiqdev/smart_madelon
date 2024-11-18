@@ -64,6 +64,7 @@ class FreshAirSystem:
     def __init__(self, host, port=8899):
         self.modbus = ModbusClient(host=host, port=port)
         self._registers_cache = None
+        self.unique_identifier = f"{host}:{port}"  # Use host and port as a unique identifier
 
     def _read_all_registers(self):
         """一次性读取所有相关寄存器"""

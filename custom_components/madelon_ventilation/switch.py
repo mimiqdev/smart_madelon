@@ -37,7 +37,7 @@ class FreshAirPowerSwitch(SwitchEntity):
         self._attr_has_entity_name = True
         self._system = system
         self._attr_name = "Fresh Air Power"
-        self._attr_unique_id = f"{DOMAIN}_power_switch_{system.id}"
+        self._attr_unique_id = f"{DOMAIN}_power_switch_{system.unique_identifier}"
         self._attr_is_on = system.is_power_on
 
     async def async_turn_on(self, **kwargs):

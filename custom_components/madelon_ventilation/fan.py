@@ -24,7 +24,7 @@ class FreshAirFan(FanEntity):
         self._attr_name = "Fresh Air Fan"
         self._attr_is_on = system.power
         self._attr_percentage = self._get_percentage(system.supply_speed)
-        self._attr_unique_id = f"{DOMAIN}_fan_{system.id}"
+        self._attr_unique_id = f"{DOMAIN}_fan_{system.unique_identifier}"
 
     @property
     def supported_features(self):
