@@ -40,12 +40,14 @@ class FreshAirTemperatureSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_name = "Fresh Air Temperature"
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-    _attr_native_value = SensorDeviceClass.TEMPERATURE
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
 
     def __init__(self, entry: ConfigEntry, system):
         super().__init__()
+        self._system = system
         self._attr_unique_id = f"{DOMAIN}_temperature_sensor_{system.unique_identifier}"
+        self._attr_native_value = None
 
     async def async_update(self):
         self._attr_native_value = self._system.temperature
@@ -55,10 +57,13 @@ class FreshAirHumiditySensor(SensorEntity):
     _attr_name = "Fresh Air Humidity"
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.HUMIDITY
 
     def __init__(self, entry: ConfigEntry, system):
         super().__init__()
+        self._system = system
         self._attr_unique_id = f"{DOMAIN}_humidity_sensor_{system.unique_identifier}"
+        self._attr_native_value = None
 
     async def async_update(self):
         self._attr_native_value = self._system.humidity
