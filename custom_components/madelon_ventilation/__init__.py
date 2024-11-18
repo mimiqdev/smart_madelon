@@ -16,7 +16,7 @@ async def async_setup(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     logging.getLogger(__name__).info("Setting up Madelon Ventilation")
 
     hass.data.setdefault(DOMAIN, {})
-    host = entry.data.get(CONF_HOST)
+    host = entry.data[CONF_HOST]
     system = FreshAirSystem(host)
     hass.data[DOMAIN] = {"system": system}
     return True
