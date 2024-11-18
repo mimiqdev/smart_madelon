@@ -1,4 +1,5 @@
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
 from homeassistant.components.sensor import (
@@ -17,11 +18,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     logging.getLogger(__name__).info("Setting up Fresh Air System sensors")
     # 从 hass.data 中获取 FreshAirSystem 实例
     system = hass.data[DOMAIN]["system"]
-    
+
     # 添加传感器实体
     async_add_entities([
-        FreshAirTemperatureSensor(system),
-        FreshAirHumiditySensor(system)
+        FreshAirTemperatureSensor(config_entry, system),
+        FreshAirHumiditySensor(config_entry, system)
     ])
 
 class FreshAirTemperatureSensor(SensorEntity):
@@ -31,18 +32,9 @@ class FreshAirTemperatureSensor(SensorEntity):
     _attr_native_value = SensorDeviceClass.TEMPERATURE
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, system):
+    def __init__(self, entry: ConfigEntry, system):
+        super().__init__(entry)
         self._attr_unique_id = f"{DOMAIN}_temperature_sensor_{system.id}"
-
-    @property
-    def device_info(self):
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._system.id)},
-            name="Fresh Air System",
-            manufacturer="Madelon",
-            model="Model XYZ",
-            sw_version="1.0",
-        )
 
     async def async_update(self):
         self._attr_native_value = self._system.temperature
@@ -53,18 +45,9 @@ class FreshAirHumiditySensor(SensorEntity):
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, system):
+    def __init__(self, entry: ConfigEntry, system):
+        super().__init__(entry)
         self._attr_unique_id = f"{DOMAIN}_humidity_sensor_{system.id}"
-
-    @property
-    def device_info(self):
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._system.id)},
-            name="Fresh Air System",
-            manufacturer="Madelon",
-            model="Model XYZ",
-            sw_version="1.0",
-        )
 
     async def async_update(self):
         self._attr_native_value = self._system.humidity
