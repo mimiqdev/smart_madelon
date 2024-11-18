@@ -6,7 +6,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfTemperature, UnitOfHumidity
+from homeassistant.const import UnitOfTemperature, PERCENTAGE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
@@ -50,7 +50,7 @@ class FreshAirTemperatureSensor(SensorEntity):
 class FreshAirHumiditySensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_name = "Fresh Air Humidity"
-    _attr_native_unit_of_measurement = UnitOfHumidity.PERCENTAGE
+    _attr_native_unit_of_measurement = PERCENTAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, system):
