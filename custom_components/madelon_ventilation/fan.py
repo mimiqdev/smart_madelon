@@ -1,6 +1,6 @@
 from homeassistant.components.fan import FanEntity, SUPPORT_SET_SPEED
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.const import CONF_HOST
 from .const import DOMAIN
 from .fresh_air_controller import FreshAirSystem
@@ -9,16 +9,7 @@ import logging
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Fresh Air System fan."""
     logging.getLogger(__name__).info("Setting up Fresh Air System fan")
-    host = config_entry.data[CONF_HOST]
-    system = FreshAirSystem(host)
-    async_add_entities([FreshAirFan(config_entry, system)])
-
-# async def async_setup_platform(hass, config_entry, async_add_entities, discovery_info=None):
-#     """Set up the Fresh Air System fan."""
-#     logging.getLogger(__name__).info("Setting up Fresh Air System fan")
-#     host = config_entry.data[CONF_HOST]
-#     system = FreshAirSystem(host)
-#     async_add_entities([FreshAirFan(config_entry, system)])
+    async_add_entities([FreshAirFan(config_entry, hass.data[DOMAIN][config_entry.entry_id]["system"])])
 
 class FreshAirFan(FanEntity):
     def __init__(self, entry: ConfigEntry, system):
@@ -26,9 +17,27 @@ class FreshAirFan(FanEntity):
         self._attr_has_entity_name = True
         self._system = system
         self._attr_name = "Fresh Air Fan"
-        self._attr_is_on = system.power
-        self._attr_percentage = self._get_percentage(system.supply_speed)
+        self._attr_is_on = False
+        self._attr_percentage = self._get_percentage(0)
         self._attr_unique_id = f"{DOMAIN}_fan_{system.unique_identifier}"
+        # self._update_state_from_system()
+
+    def _update_state_from_system(self):
+        """Update the fan's state from the FreshAirSystem."""
+        self._attr_is_on = self._system.power
+        self._attr_percentage = self._get_percentage(self._system.supply_speed)
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information about this entity."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._system.unique_identifier)},
+            name="Fresh Air System",
+            manufacturer="Madelon",
+            model="XIXI",
+            sw_version="1.0",
+        )
 
     @property
     def supported_features(self):
@@ -72,13 +81,13 @@ class FreshAirFan(FanEntity):
             self._system.power = True
         if percentage is not None:
             await self.async_set_percentage(percentage)
-        self.async_write_ha_state()
+        self._update_state_from_system()
 
     async def async_turn_off(self, **kwargs):
         """Turn off the fan."""
         self._system.power = False
         self._attr_percentage = 0
-        self.async_write_ha_state()
+        self._update_state_from_system()
 
     async def async_set_percentage(self, percentage):
         """Set the speed of the fan as a percentage."""
@@ -91,4 +100,4 @@ class FreshAirFan(FanEntity):
                 self._system.power = True
             self._system.supply_speed = speed_value
             self._attr_percentage = percentage
-            self.async_write_ha_state() 
+            self._update_state_from_system() 

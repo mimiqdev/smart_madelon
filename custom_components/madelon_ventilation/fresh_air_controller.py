@@ -65,23 +65,32 @@ class FreshAirSystem:
         self.modbus = ModbusClient(host=host, port=port)
         self._registers_cache = None
         self.unique_identifier = f"{host}:{port}"  # Use host and port as a unique identifier
+        self.logger = logging.getLogger(__name__)
+        self.logger.debug(f"Initialized FreshAirSystem with host: {host}, port: {port}")
 
     def _read_all_registers(self):
         """一次性读取所有相关寄存器"""
         start_address = min(self.REGISTERS.values())
         count = max(self.REGISTERS.values()) - start_address + 1
+        self.logger.debug(f"Reading all registers from {start_address} to {start_address + count - 1}")
         self._registers_cache = self.modbus.read_registers(start_address, count)
+        self.logger.debug(f"Registers read: {self._registers_cache}")
 
     def _get_register_value(self, name):
         """从缓存中获取寄存器值"""
         if self._registers_cache is None:
+            self.logger.debug(f"Cache is empty, reading all registers for {name}")
             self._read_all_registers()
         address = self.REGISTERS[name]
-        return self._registers_cache[address] if self._registers_cache else None
+        value = self._registers_cache[address] if self._registers_cache else None
+        self.logger.debug(f"Register {name} (address {address}) value: {value}")
+        return value
 
     def _validate_speed(self, speed):
         if not 1 <= speed <= 3:
+            self.logger.error(f"Invalid speed: {speed}. Must be between 1 and 3.")
             raise ValueError("风速必须在1-3之间")
+        self.logger.debug(f"Validated speed: {speed}")
         return speed
 
     @property
@@ -92,6 +101,7 @@ class FreshAirSystem:
     @power.setter
     def power(self, state: bool):
         """设置电源状态"""
+        self.logger.debug(f"Setting power to: {state}")
         self.modbus.write_single_register(self.REGISTERS['power'], int(state))
 
     @property
@@ -102,6 +112,7 @@ class FreshAirSystem:
     @mode.setter
     def mode(self, mode: OperationMode):
         """设置运行模式"""
+        self.logger.debug(f"Setting mode to: {mode}")
         self.modbus.write_single_register(self.REGISTERS['mode'], mode.value)
 
     @property
@@ -112,6 +123,7 @@ class FreshAirSystem:
     @supply_speed.setter
     def supply_speed(self, speed: int):
         """设置送风速度"""
+        self.logger.debug(f"Setting supply speed to: {speed}")
         self.modbus.write_single_register(self.REGISTERS['supply_speed'], 
                                         self._validate_speed(speed))
 
@@ -123,6 +135,7 @@ class FreshAirSystem:
     @exhaust_speed.setter
     def exhaust_speed(self, speed: int):
         """设置排风速度"""
+        self.logger.debug(f"Setting exhaust speed to: {speed}")
         self.modbus.write_single_register(self.REGISTERS['exhaust_speed'], 
                                         self._validate_speed(speed))
 
@@ -134,6 +147,7 @@ class FreshAirSystem:
     @bypass.setter
     def bypass(self, state: bool):
         """设置旁通状态"""
+        self.logger.debug(f"Setting bypass to: {state}")
         self.modbus.write_single_register(self.REGISTERS['bypass'], int(state))
 
     @property
