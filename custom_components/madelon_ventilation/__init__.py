@@ -2,8 +2,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.const import Platform
+from homeassistant.const import CONF_HOST
 from homeassistant.helpers.discovery import async_load_platform
-from .const import DOMAIN, CONF_HOST
+from .const import DOMAIN
 
 from .fresh_air_controller import FreshAirSystem
 import logging
