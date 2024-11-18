@@ -22,6 +22,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Set up the Fresh Air System from a config entry."""
+    hass.data.setdefault(DOMAIN, {})
+    hass_data = dict(hass.data[DOMAIN])
+    hass.data[DOMAIN][config_entry.entry_id] = hass_data
     logging.getLogger(__name__).info("Setting up Madelon Ventilation entry")
+
+    # Forward the setup to the platforms
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
     return True
