@@ -12,9 +12,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Madelon Ventilation component."""
     logging.getLogger(__name__).info("Setting up Madelon Ventilation")
     host = config[DOMAIN].get("host")
-    hass.async_create_task(async_load_platform(hass, Platform.FAN, DOMAIN, {}, config))
-    hass.async_create_task(async_load_platform(hass, Platform.SENSOR, DOMAIN, {}, config))
-    hass.async_create_task(async_load_platform(hass, Platform.SWITCH, DOMAIN, {}, config))
+    # hass.async_create_task(async_load_platform(hass, Platform.FAN, DOMAIN, {}, config))
+    # hass.async_create_task(async_load_platform(hass, Platform.SENSOR, DOMAIN, {}, config))
+    # hass.async_create_task(async_load_platform(hass, Platform.SWITCH, DOMAIN, {}, config))
     system = FreshAirSystem(host)
     hass.data[DOMAIN] = {"system": system}
     return True
