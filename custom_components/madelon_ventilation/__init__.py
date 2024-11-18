@@ -3,19 +3,19 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.const import Platform
 from homeassistant.helpers.discovery import async_load_platform
-from .const import DOMAIN
+from .const import DOMAIN, CONF_HOST
 
 from .fresh_air_controller import FreshAirSystem
 import logging
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.FAN, Platform.SWITCH]
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+async def async_setup(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up the Madelon Ventilation component."""
     logging.getLogger(__name__).info("Setting up Madelon Ventilation")
 
     hass.data.setdefault(DOMAIN, {})
-    host = config[DOMAIN].get("host")
+    host = entry.data.get(CONF_HOST)
     system = FreshAirSystem(host)
     hass.data[DOMAIN] = {"system": system}
     return True
@@ -30,3 +30,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     # Forward the setup to the platforms
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
     return True
+
+# async def async_remove_config_entry_device(
+#     hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry
+# ) -> bool:
+#     """Delete device if selected from UI."""
+#     # Adding this function shows the delete device option in the UI.
+#     # Remove this function if you do not want that option.
+#     # You may need to do some checks here before allowing devices to be removed.
+#     return True
