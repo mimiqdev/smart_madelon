@@ -7,12 +7,12 @@
   "requirements": [
     "pymodbus==3.6.9"
   ],
-  "dependencies": ["fan", "sensor", "switch"],
+  "dependencies": [],
   "codeowners": [
     "@mimiqdev"
   ],
   "homeassistant": "2024.11.2",
-  "config_flow": false,
+  "config_flow": true,
   "iot_class": "local_polling",
   "integration_type": "device"
 }
