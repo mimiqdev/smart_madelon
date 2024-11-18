@@ -1,6 +1,6 @@
-from .const import DOMAIN
 from __future__ import annotations
 
+from .const import DOMAIN
 from typing import Any
 
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity

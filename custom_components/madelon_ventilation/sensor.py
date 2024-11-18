@@ -42,10 +42,7 @@ class FreshAirTemperatureSensor(SensorEntity):
             manufacturer="Madelon",
             model="Model XYZ",
             sw_version="1.0",
-                _attr_has_entity_name = True
-        _attr_name = "Fresh Air Temperature"
-        _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
- )
+        )
 
     async def async_update(self):
         self._attr_native_value = self._system.temperature
