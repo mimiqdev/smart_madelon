@@ -2,6 +2,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity import DeviceInfo
 from .const import DOMAIN
+from .fresh_air_controller import FreshAirSystem
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -17,8 +18,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Fresh Air System sensors."""
     logging.getLogger(__name__).info("Setting up Fresh Air System sensors")
     # 从 hass.data 中获取 FreshAirSystem 实例
-    system = hass.data[DOMAIN]["system"]
-
+    host = config_entry.data[CONF_HOST]
+    system = FreshAirSystem(host)
     # 添加传感器实体
     async_add_entities([
         FreshAirTemperatureSensor(config_entry, system),

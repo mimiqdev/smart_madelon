@@ -26,9 +26,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     hass.data.setdefault(DOMAIN, {})
     hass_data = dict(hass.data[DOMAIN])
     hass.data[DOMAIN][config_entry.entry_id] = hass_data
-    host = config_entry.data[CONF_HOST]
-    system = FreshAirSystem(host)
-    hass.data[DOMAIN][config_entry.entry_id]['system'] = system
     logging.getLogger(__name__).info("Setting up Madelon Ventilation entry")
 
     # Forward the setup to the platforms
