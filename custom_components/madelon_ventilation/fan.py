@@ -18,7 +18,7 @@ async def async_setup_platform(hass, config_entry, async_add_entities, discovery
 
 class FreshAirFan(FanEntity):
     def __init__(self, entry: ConfigEntry, system):
-        super().__init__(entry)
+        super().__init__()
         self._attr_has_entity_name = True
         self._system = system
         self._attr_name = "Fresh Air Fan"

@@ -33,21 +33,12 @@ class FreshAirPowerSwitch(SwitchEntity):
     _attr_device_class = SwitchDeviceClass.SWITCH
 
     def __init__(self, system):
+        super().__init__()
         self._attr_has_entity_name = True
         self._system = system
         self._attr_name = "Fresh Air Power"
         self._attr_unique_id = f"{DOMAIN}_power_switch_{system.id}"
         self._attr_is_on = system.is_power_on
-
-    @property
-    def device_info(self):
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._system.id)},
-            name="Fresh Air System",
-            manufacturer="Madelon",
-            model="Model XYZ",
-            sw_version="1.0",
-        )
 
     async def async_turn_on(self, **kwargs):
         self._system.turn_on()

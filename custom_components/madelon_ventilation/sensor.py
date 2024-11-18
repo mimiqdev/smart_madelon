@@ -44,7 +44,7 @@ class FreshAirTemperatureSensor(SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, entry: ConfigEntry, system):
-        super().__init__(entry)
+        super().__init__()
         self._attr_unique_id = f"{DOMAIN}_temperature_sensor_{system.id}"
 
     async def async_update(self):
@@ -57,7 +57,7 @@ class FreshAirHumiditySensor(SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, entry: ConfigEntry, system):
-        super().__init__(entry)
+        super().__init__()
         self._attr_unique_id = f"{DOMAIN}_humidity_sensor_{system.id}"
 
     async def async_update(self):
