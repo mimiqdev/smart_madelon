@@ -26,6 +26,7 @@ class FreshAirFan(FanEntity):
         self._system = system
         self._attr_name = "Fresh Air Fan"
         self._attr_unique_id = f"{DOMAIN}_fan_{system.unique_identifier}"
+        self._attr_percentage = 0
 
     async def async_update(self):
         """Fetch new state data for the fan."""
