@@ -13,14 +13,15 @@ log = logging.getLogger()
 log.setLevel(logging.WARNING)
 
 class ModbusClient:
-    def __init__(self, host, port=8899):
+    def __init__(self, host, port, unit_id):
         self.client = ModbusTcpClient(host=host, port=port)
+        self.unit_id = unit_id
 
     def read_registers(self, start_address, count):
         """Read multiple holding registers using FC03."""
         try:
             self.client.connect()
-            response = self.client.read_holding_registers(start_address, count, slave=1)
+            response = self.client.read_holding_registers(start_address, count, unit=self.unit_id)
             if response.isError():
                 print(f"Error reading registers: {response}")
                 return None
@@ -32,7 +33,7 @@ class ModbusClient:
         """Write a single register using FC06."""
         try:
             self.client.connect()
-            response = self.client.write_register(address, value, slave=1)
+            response = self.client.write_register(address, value, unit=self.unit_id)
             if response.isError():
                 print(f"Error writing register: {response}")
         finally:
@@ -50,23 +51,23 @@ class FreshAirSystem:
     
     # 寄存器地址映射
     REGISTERS = {
-        'power': 0,        # 电源控制
-        'mode': 4,         # 运行模式
-        'supply_speed': 7, # 送风速度设置
-        'exhaust_speed': 8,# 排风速度设置
-        'bypass': 9,       # 旁通开关
-        'actual_supply': 12,# 实际送风速度
-        'actual_exhaust': 13,# 实际排风速度
-        'temperature': 16, # 温度
-        'humidity': 17,    # 湿度
+        'power': 0,        # Power mode: 0=off, 1=on
+        'mode': 4,         # Mode: 0=manual, 1=auto, 2=timer
+        'supply_speed': 7, # Supply speed: 1-3
+        'exhaust_speed': 8,# Exhaust speed: 1-3
+        'bypass': 9,       # Bypass: 0=off, 1=on
+        'actual_supply': 12,# Actual supply speed
+        'actual_exhaust': 13,# Actual exhaust speed
+        'temperature': 16, # Temperature
+        'humidity': 17,    # Humidity
     }
 
-    def __init__(self, host, port=8899):
-        self.modbus = ModbusClient(host=host, port=port)
+    def __init__(self, host, port, unit_id):
+        self.modbus = ModbusClient(host=host, port=port, unit_id=unit_id)
         self._registers_cache = None
-        self.unique_identifier = f"{host}:{port}"  # Use host and port as a unique identifier
+        self.unique_identifier = f"{host}:{port}:{unit_id}"  # Use host, port and unit_id as a unique identifier
         self.logger = logging.getLogger(__name__)
-        self.logger.debug(f"Initialized FreshAirSystem with host: {host}, port: {port}")
+        self.logger.debug(f"Initialized FreshAirSystem with host: {host}, port: {port}, unit_id: {unit_id}")
         self.sensors = []  # List to hold sensor entities
 
     def register_sensor(self, sensor):
@@ -127,7 +128,7 @@ class FreshAirSystem:
     @property
     def supply_speed(self):
         """获取送风速度设置"""
-        return self._get_register_value('supply_speed')
+        return self._get_register_value('actual_supply')
 
     @supply_speed.setter
     def supply_speed(self, speed: int):
@@ -139,7 +140,7 @@ class FreshAirSystem:
     @property
     def exhaust_speed(self):
         """获取排风速度设置"""
-        return self._get_register_value('exhaust_speed')
+        return self._get_register_value('actual_exhaust')
 
     @exhaust_speed.setter
     def exhaust_speed(self, speed: int):
@@ -158,16 +159,6 @@ class FreshAirSystem:
         """设置旁通状态"""
         self.logger.debug(f"Setting bypass to: {state}")
         self.modbus.write_single_register(self.REGISTERS['bypass'], int(state))
-
-    @property
-    def actual_supply_speed(self):
-        """获取实际送风速度"""
-        return self._get_register_value('actual_supply')
-
-    @property
-    def actual_exhaust_speed(self):
-        """获取实际排风速度"""
-        return self._get_register_value('actual_exhaust')
 
     @property
     def temperature(self):

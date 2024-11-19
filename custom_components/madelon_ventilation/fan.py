@@ -17,7 +17,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     async_add_entities([fan])
 
     # Schedule regular updates for the FreshAirSystem cache
-    async_track_time_interval(hass, fan.async_update_cache, timedelta(seconds=30))
+    async_track_time_interval(hass, fan.async_update, timedelta(seconds=30))
 
 class FreshAirFan(FanEntity):
     def __init__(self, entry: ConfigEntry, system: FreshAirSystem):
@@ -25,14 +25,14 @@ class FreshAirFan(FanEntity):
         self._attr_has_entity_name = True
         self._system = system
         self._attr_name = "Fresh Air Fan"
-        self._attr_is_on = False
-        self._attr_percentage = self._get_percentage(0)
         self._attr_unique_id = f"{DOMAIN}_fan_{system.unique_identifier}"
 
-    async def async_update_cache(self, _):
-        """Asynchronously update the FreshAirSystem cache."""
+    async def async_update(self):
+        """Fetch new state data for the fan."""
         self._system._read_all_registers()
-        self._update_state_from_system()
+        self._attr_is_on = self._system.power
+        self._attr_percentage = self._get_percentage(self._system.supply_speed)
+        self.async_write_ha_state()
 
     def _update_state_from_system(self):
         """Update the fan's state from the FreshAirSystem."""
@@ -63,12 +63,12 @@ class FreshAirFan(FanEntity):
     @property
     def is_on(self):
         """Return true if the fan is on."""
-        return self._system.power
+        return self._attr_is_on
 
     @property
     def percentage(self):
         """Return the current speed as a percentage."""
-        return self._get_percentage(self._system.supply_speed)
+        return self._attr_percentage
 
     @property
     def speed_count(self):
@@ -97,31 +97,24 @@ class FreshAirFan(FanEntity):
             await self.async_set_percentage(percentage)
         else:
             self._system.power = True
-        self._update_state_from_system()
-        await self.async_update_cache(None)
-  
+        await self.async_update()
+
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the fan off.""" 
         self._system.power = False
         self._attr_percentage = 0
-        self._update_state_from_system()
-        await self.async_update_cache(None)
+        await self.async_update()
 
     async def async_set_percentage(self, percentage):
         """Set the speed of the fan as a percentage."""
         speed_value = self._get_speed_value(percentage)
 
         if speed_value == 0:
-            # Turn off the fan if the speed is 0
-            if self._system.power:
-                self._system.power = False
+            self._system.power = False
         else:
-            if not self._system.power:
-                self._system.power = True
-            # Update both supply and exhaust speeds
+            self._system.power = True
             self._system.supply_speed = speed_value
             self._system.exhaust_speed = speed_value
 
         self._attr_percentage = percentage
-        self._update_state_from_system()
-        await self.async_update_cache(None)
+        await self.async_update()
