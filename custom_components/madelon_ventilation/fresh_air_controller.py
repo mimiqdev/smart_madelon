@@ -166,7 +166,7 @@ class FreshAirSystem:
         value = self._get_register_value('temperature')
         if value is None:
             self.logger.error("Failed to read temperature register.")
-            return None
+            return 0
         return value / 10
 
     @property
@@ -175,7 +175,7 @@ class FreshAirSystem:
         value = self._get_register_value('humidity')
         if value is None:
             self.logger.error("Failed to read humidity register.")
-            return None
+            return 0
         return value / 10
 
 # 只在直接运行此文件时执行测试代码
