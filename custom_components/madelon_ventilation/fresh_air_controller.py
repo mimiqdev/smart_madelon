@@ -163,12 +163,20 @@ class FreshAirSystem:
     @property
     def temperature(self):
         """获取温度（°C）"""
-        return self._get_register_value('temperature') / 10
+        value = self._get_register_value('temperature')
+        if value is None:
+            self.logger.error("Failed to read temperature register.")
+            return None
+        return value / 10
 
     @property
     def humidity(self):
         """获取湿度（%）"""
-        return self._get_register_value('humidity') / 10
+        value = self._get_register_value('humidity')
+        if value is None:
+            self.logger.error("Failed to read humidity register.")
+            return None
+        return value / 10
 
 # 只在直接运行此文件时执行测试代码
 if __name__ == "__main__":
