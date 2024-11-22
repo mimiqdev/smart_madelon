@@ -116,8 +116,16 @@ class FreshAirSystem:
 
     @property
     def mode(self):
-        """获取运行模式"""
-        return OperationMode(self._get_register_value('mode'))
+        """Return the current operation mode."""
+        value = self._get_register_value('mode')
+        if value is None:
+            self.logger.warning("Failed to read mode register.")
+            return OperationMode.MANUAL # DEFAULT VALUE
+        try:
+            return OperationMode(value)
+        except ValueError:
+            self.logger.warning(f"Invalid mode value: {value}")
+            return OperationMode.MANUAL # DEFAULT VALUE
 
     @mode.setter
     def mode(self, mode: OperationMode):
@@ -165,7 +173,7 @@ class FreshAirSystem:
         """获取温度（°C）"""
         value = self._get_register_value('temperature')
         if value is None:
-            self.logger.error("Failed to read temperature register.")
+            self.logger.warning("Failed to read temperature register.")
             return 0
         return value / 10
 
@@ -174,7 +182,7 @@ class FreshAirSystem:
         """获取湿度（%）"""
         value = self._get_register_value('humidity')
         if value is None:
-            self.logger.error("Failed to read humidity register.")
+            self.logger.warning("Failed to read humidity register.")
             return 0
         return value / 10
 
