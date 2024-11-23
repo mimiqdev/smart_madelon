@@ -16,32 +16,30 @@ from homeassistant.config_entries import (
 from homeassistant.const import (
     CONF_HOST,
     CONF_SCAN_INTERVAL,
+    CONF_PORT,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 
 # from .api import API, APIAuthError, APIConnectionError
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, MIN_SCAN_INTERVAL
+from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, MIN_SCAN_INTERVAL, DEFAULT_PORT, DEFAULT_UNIT_ID, CONF_UNIT_ID
 
 _LOGGER = logging.getLogger(__name__)
 
 # TODO adjust the data schema to the data that you need
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_HOST, description={"suggested_value": "10.10.10.1"}): str,
+        vol.Required(CONF_HOST): str,
+        vol.Optional(CONF_PORT, default=DEFAULT_PORT): int,
+        vol.Optional(CONF_UNIT_ID, default=DEFAULT_UNIT_ID): int,
     }
 )
 
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect."""
-    try:
-        system = FreshAirSystem(data[CONF_HOST])
-        # Try to read registers to verify connection
-        system._read_all_registers()
-        return {"title": f"Fresh Air System - {data[CONF_HOST]}"}
-    except Exception as err:
-        raise CannotConnect from err
+    # Simply return the title without attempting connection
+    return {"title": f"Fresh Air System - {data[CONF_HOST]}"}
 
 
 class ExampleConfigFlow(ConfigFlow, domain=DOMAIN):

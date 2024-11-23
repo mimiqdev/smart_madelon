@@ -6,6 +6,7 @@ from pymodbus import (
     # pymodbus_apply_logging_config,
 )
 import logging
+from .const import DEFAULT_PORT, DEFAULT_UNIT_ID
 
 # Enable logging
 logging.basicConfig()
@@ -13,9 +14,10 @@ log = logging.getLogger()
 log.setLevel(logging.WARNING)
 
 class ModbusClient:
-    def __init__(self, host, port=8899):
+    def __init__(self, host, port=DEFAULT_PORT, unit_id=DEFAULT_UNIT_ID):
         self.host = host
         self.port = port
+        self.unit_id = unit_id
         self.client = None
         self.logger = logging.getLogger(__name__)
 
@@ -36,7 +38,11 @@ class ModbusClient:
         try:
             if not self._ensure_connected():
                 return None
-            response = self.client.read_holding_registers(start_address, count, slave=1)
+            response = self.client.read_holding_registers(
+                start_address, 
+                count, 
+                slave=self.unit_id
+            )
             if response.isError():
                 self.logger.error(f"Error reading registers: {response}")
                 return None
@@ -53,7 +59,11 @@ class ModbusClient:
         try:
             if not self._ensure_connected():
                 return False
-            response = self.client.write_register(address, value, slave=1)
+            response = self.client.write_register(
+                address, 
+                value, 
+                slave=self.unit_id
+            )
             if response.isError():
                 self.logger.error(f"Error writing register: {response}")
                 return False
@@ -88,8 +98,8 @@ class FreshAirSystem:
         'humidity': 17,    # 湿度
     }
 
-    def __init__(self, host, port=8899):
-        self.modbus = ModbusClient(host=host, port=port)
+    def __init__(self, host, port=DEFAULT_PORT, unit_id=DEFAULT_UNIT_ID):
+        self.modbus = ModbusClient(host=host, port=port, unit_id=unit_id)
         self._registers_cache = None
         self.unique_identifier = f"{host}:{port}"  # Use host and port as a unique identifier
         self.logger = logging.getLogger(__name__)
