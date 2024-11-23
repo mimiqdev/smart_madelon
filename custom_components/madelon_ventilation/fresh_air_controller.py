@@ -14,29 +14,56 @@ log.setLevel(logging.WARNING)
 
 class ModbusClient:
     def __init__(self, host, port=8899):
-        self.client = ModbusTcpClient(host=host, port=port)
+        self.host = host
+        self.port = port
+        self.client = None
+        self.logger = logging.getLogger(__name__)
+
+    def _ensure_connected(self):
+        """Ensure connection is established"""
+        try:
+            if self.client is None:
+                self.client = ModbusTcpClient(host=self.host, port=self.port)
+            if not self.client.connected:
+                self.client.connect()
+            return True
+        except Exception as e:
+            self.logger.error(f"Connection error: {e}")
+            return False
 
     def read_registers(self, start_address, count):
         """Read multiple holding registers using FC03."""
         try:
-            self.client.connect()
+            if not self._ensure_connected():
+                return None
             response = self.client.read_holding_registers(start_address, count, slave=1)
             if response.isError():
-                print(f"Error reading registers: {response}")
+                self.logger.error(f"Error reading registers: {response}")
                 return None
             return response.registers
+        except Exception as e:
+            self.logger.error(f"Error reading registers: {e}")
+            return None
         finally:
-            self.client.close()
+            if self.client and self.client.connected:
+                self.client.close()
 
     def write_single_register(self, address, value):
         """Write a single register using FC06."""
         try:
-            self.client.connect()
+            if not self._ensure_connected():
+                return False
             response = self.client.write_register(address, value, slave=1)
             if response.isError():
-                print(f"Error writing register: {response}")
+                self.logger.error(f"Error writing register: {response}")
+                return False
+            return True
+        except Exception as e:
+            self.logger.error(f"Error writing register: {e}")
+            return False
         finally:
-            self.client.close()
+            if self.client and self.client.connected:
+                self.client.close()
 
 __all__ = ['FreshAirSystem', 'OperationMode']
 
@@ -75,25 +102,36 @@ class FreshAirSystem:
 
     def _read_all_registers(self):
         """一次性读取所有相关寄存器"""
-        start_address = min(self.REGISTERS.values())
-        count = max(self.REGISTERS.values()) - start_address + 1
-        self.logger.debug(f"Reading all registers from {start_address} to {start_address + count - 1}")
-        self._registers_cache = self.modbus.read_registers(start_address, count)
-        self.logger.debug(f"Registers read: {self._registers_cache}")
+        try:
+            start_address = min(self.REGISTERS.values())
+            count = max(self.REGISTERS.values()) - start_address + 1
+            self.logger.debug(f"Reading all registers from {start_address} to {start_address + count - 1}")
+            self._registers_cache = self.modbus.read_registers(start_address, count)
+            self.logger.debug(f"Registers read: {self._registers_cache}")
 
-        # Update all registered sensors
-        for sensor in self.sensors:
-            sensor.async_schedule_update_ha_state(True)
+            # Update all registered sensors
+            for sensor in self.sensors:
+                sensor.async_schedule_update_ha_state(True)
+        except Exception as e:
+            self.logger.error(f"Error reading registers: {e}")
+            self._registers_cache = None
+            return False
+        return True
 
     def _get_register_value(self, name):
         """从缓存中获取寄存器值"""
-        if self._registers_cache is None:
-            self.logger.debug(f"Cache is empty, reading all registers for {name}")
-            self._read_all_registers()
-        address = self.REGISTERS[name]
-        value = self._registers_cache[address] if self._registers_cache else None
-        self.logger.debug(f"Register {name} (address {address}) value: {value}")
-        return value
+        try:
+            if self._registers_cache is None:
+                self.logger.debug(f"Cache is empty, reading all registers for {name}")
+                if not self._read_all_registers():
+                    return 0  # Return default value on error
+            address = self.REGISTERS[name]
+            value = self._registers_cache[address] if self._registers_cache else 0
+            self.logger.debug(f"Register {name} (address {address}) value: {value}")
+            return value
+        except Exception as e:
+            self.logger.error(f"Error getting register value: {e}")
+            return 0  # Return default value on error
 
     def _validate_speed(self, speed):
         if not 1 <= speed <= 3:
