@@ -8,6 +8,7 @@ from datetime import timedelta
 from .const import DOMAIN
 from .fresh_air_controller import FreshAirSystem
 import logging
+from typing import Any
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     """Set up the Fresh Air System fan."""
@@ -28,17 +29,26 @@ class FreshAirFan(FanEntity):
         self._attr_unique_id = f"{DOMAIN}_fan_{system.unique_identifier}"
         self._attr_percentage = 0
 
-    async def async_update(self):
+    async def async_update(self, now=None):
         """Fetch new state data for the fan."""
-        self._system._read_all_registers()
-        self._attr_is_on = self._system.power
-        self._attr_percentage = self._get_percentage(self._system.supply_speed)
+        try:
+            self._system._read_all_registers()
+            if self._system.available:
+                self._attr_is_on = self._system.power
+                self._attr_percentage = self._get_percentage(self._system.supply_speed)
+            self._attr_available = self._system.available
+        except Exception as e:
+            self.logger.error(f"Error updating fan state: {e}")
+            self._attr_available = False
+        
         self.async_write_ha_state()
 
     def _update_state_from_system(self):
         """Update the fan's state from the FreshAirSystem."""
-        self._attr_is_on = self._system.power
-        self._attr_percentage = self._get_percentage(self._system.supply_speed)
+        if self._system.available:
+            self._attr_is_on = self._system.power
+            self._attr_percentage = self._get_percentage(self._system.supply_speed)
+        self._attr_available = self._system.available
         self.async_write_ha_state()
 
     @property
@@ -92,12 +102,42 @@ class FreshAirFan(FanEntity):
         else:
             return 3
 
-    async def async_turn_on(self, percentage=None, **kwargs) -> None:
-        """Turn the fan on."""
+    async def async_turn_on(
+        self,
+        speed: str | None = None,
+        percentage: int | None = None,
+        preset_mode: str | None = None,
+        **kwargs: Any
+    ) -> None:
+        """Turn on the fan."""
+        self._system.power = True
+        
+        # Handle percentage if provided (preferred method)
         if percentage is not None:
-            await self.async_set_percentage(percentage)
-        else:
-            self._system.power = True
+            speed_value = self._get_speed_value(percentage)
+            self._system.supply_speed = speed_value
+            self._system.exhaust_speed = speed_value
+            self._attr_percentage = percentage
+        # Handle legacy speed if provided
+        elif speed is not None:
+            # Convert legacy speed string to percentage
+            if speed == "low":
+                self._attr_percentage = 33
+            elif speed == "medium":
+                self._attr_percentage = 66
+            elif speed == "high":
+                self._attr_percentage = 100
+            speed_value = self._get_speed_value(self._attr_percentage)
+            self._system.supply_speed = speed_value
+            self._system.exhaust_speed = speed_value
+
+        # Handle preset_mode if provided
+        if preset_mode is not None:
+            # Implement preset mode handling if your fan supports it
+            pass
+
+        self._attr_is_on = True
+        # Update the entity state by reading from the device
         await self.async_update()
 
     async def async_turn_off(self, **kwargs) -> None:

@@ -53,7 +53,10 @@ class FreshAirTemperatureSensor(SensorEntity):
         )
 
     async def async_update(self):
-        self._attr_native_value = self._system.temperature
+        """Update temperature value."""
+        if self._system.available:
+            self._attr_native_value = self._system.temperature
+        self._attr_available = self._system.available
 
 class FreshAirHumiditySensor(SensorEntity):
     _attr_has_entity_name = True
@@ -80,4 +83,7 @@ class FreshAirHumiditySensor(SensorEntity):
         )
 
     async def async_update(self):
-        self._attr_native_value = self._system.humidity
+        """Update humidity value."""
+        if self._system.available:
+            self._attr_native_value = self._system.humidity
+        self._attr_available = self._system.available

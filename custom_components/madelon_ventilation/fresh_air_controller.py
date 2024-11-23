@@ -68,6 +68,7 @@ class FreshAirSystem:
         self.unique_identifier = f"{host}:{port}:{unit_id}"  # Use host, port and unit_id as a unique identifier
         self.logger = logging.getLogger(__name__)
         self.logger.debug(f"Initialized FreshAirSystem with host: {host}, port: {port}, unit_id: {unit_id}")
+        self.available = False  # Add availability tracking
         self.sensors = []  # List to hold sensor entities
 
     def register_sensor(self, sensor):
@@ -75,16 +76,18 @@ class FreshAirSystem:
         self.sensors.append(sensor)
 
     def _read_all_registers(self):
-        """一次性读取所有相关寄存器"""
-        start_address = min(self.REGISTERS.values())
-        count = max(self.REGISTERS.values()) - start_address + 1
-        self.logger.debug(f"Reading all registers from {start_address} to {start_address + count - 1}")
-        self._registers_cache = self.modbus.read_registers(start_address, count)
-        self.logger.debug(f"Registers read: {self._registers_cache}")
-
-        # Update all registered sensors
-        for sensor in self.sensors:
-            sensor.async_schedule_update_ha_state(True)
+        """Read all registers with error handling."""
+        try:
+            start_address = min(self.REGISTERS.values())
+            count = max(self.REGISTERS.values()) - start_address + 1
+            self.logger.debug(f"Reading all registers from {start_address} to {start_address + count - 1}")
+            self._registers_cache = self.modbus.read_registers(start_address, count)
+            self.available = True if self._registers_cache else False
+            self.logger.debug(f"Registers read: {self._registers_cache}")
+        except Exception as e:
+            self.logger.error(f"Failed to read registers: {e}")
+            self.available = False
+            self._registers_cache = None
 
     def _get_register_value(self, name):
         """从缓存中获取寄存器值"""
