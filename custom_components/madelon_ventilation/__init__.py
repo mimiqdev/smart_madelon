@@ -8,7 +8,7 @@ from .const import DOMAIN, DEFAULT_PORT, DEFAULT_UNIT_ID, CONF_UNIT_ID
 from .fresh_air_controller import FreshAirSystem
 import logging
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.FAN]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.FAN, Platform.SWITCH]
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Set up the Fresh Air System from a config entry."""
