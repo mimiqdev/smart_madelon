@@ -9,6 +9,7 @@ from .const import DOMAIN
 from .fresh_air_controller import FreshAirSystem, OperationMode
 import logging
 
+
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     """Set up the Fresh Air System fan."""
     logging.getLogger(__name__).info("Setting up Fresh Air System fan")
@@ -30,6 +31,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     # 使用事件调度器设置定期更新
     async_track_time_interval(hass, async_update, timedelta(seconds=30))
 
+
 class FreshAirFan(FanEntity):
     def __init__(self, entry: ConfigEntry, system: FreshAirSystem):
         super().__init__()
@@ -46,7 +48,7 @@ class FreshAirFan(FanEntity):
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added to hass."""
         await super().async_added_to_hass()
-        
+
         # 初始更新一次状态
         await self.hass.async_add_executor_job(self.update)
 
@@ -55,7 +57,7 @@ class FreshAirFan(FanEntity):
         power = self._system.power
         speed = self._system.supply_speed
         mode = self._system.mode
-        
+
         self._attr_is_on = power if power is not None else False
         self._attr_percentage = self._get_percentage(speed if speed is not None else 0)
         if mode is not None:

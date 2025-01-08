@@ -14,6 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 import logging
 
+
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Fresh Air System sensors."""
     logging.getLogger(__name__).info("Setting up Fresh Air System sensors")
@@ -27,6 +28,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     fresh_air_system.register_sensor(humidity_sensor)
 
     async_add_entities([temperature_sensor, humidity_sensor])
+
 
 class FreshAirTemperatureSensor(SensorEntity):
     _attr_has_entity_name = True
@@ -54,6 +56,7 @@ class FreshAirTemperatureSensor(SensorEntity):
 
     async def async_update(self):
         self._attr_native_value = self._system.temperature
+
 
 class FreshAirHumiditySensor(SensorEntity):
     _attr_has_entity_name = True

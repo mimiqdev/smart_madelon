@@ -7,6 +7,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from .const import DOMAIN
 from .fresh_air_controller import FreshAirSystem, OperationMode
 
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     """Set up the Madelon Ventilation switches."""
     system = hass.data[DOMAIN][entry.entry_id]["system"]
@@ -18,6 +19,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     ]
 
     async_add_entities(switches)
+
 
 class MadelonModeSwitch(SwitchEntity):
     """Representation of a Madelon Ventilation mode switch."""

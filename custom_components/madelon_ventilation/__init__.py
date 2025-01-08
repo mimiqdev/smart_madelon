@@ -1,7 +1,7 @@
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.const import Platform, CONF_HOST, CONF_PORT 
+from homeassistant.const import Platform, CONF_HOST, CONF_PORT
 from homeassistant.helpers.discovery import async_load_platform
 from .const import DOMAIN, DEFAULT_PORT, DEFAULT_UNIT_ID, CONF_UNIT_ID
 
@@ -9,6 +9,7 @@ from .fresh_air_controller import FreshAirSystem
 import logging
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.FAN, Platform.SWITCH]
+
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Set up the Fresh Air System from a config entry."""

@@ -15,6 +15,7 @@ logging.basicConfig()
 log = logging.getLogger()
 log.setLevel(logging.WARNING)
 
+
 class ModbusClient:
     def __init__(self, host, port=DEFAULT_PORT, unit_id=DEFAULT_UNIT_ID):
         self.host = host
@@ -50,8 +51,8 @@ class ModbusClient:
             if not self._ensure_connected():
                 return None
             response = self.client.read_holding_registers(
-                address=start_address, 
-                count=count, 
+                address=start_address,
+                count=count,
                 slave=self.unit_id
             )
             if isinstance(response, ExceptionResponse):
@@ -71,8 +72,8 @@ class ModbusClient:
             if not self._ensure_connected():
                 return False
             response = self.client.write_register(
-                address=address, 
-                value=value, 
+                address=address,
+                value=value,
                 slave=self.unit_id
             )
             if isinstance(response, ExceptionResponse):
@@ -86,7 +87,9 @@ class ModbusClient:
             if self.client and self.client.connected:
                 self.client.close()
 
+
 __all__ = ['FreshAirSystem', 'OperationMode']
+
 
 class OperationMode(Enum):
     MANUAL = "manual"
@@ -107,19 +110,20 @@ class OperationMode(Enum):
         except ValueError:
             return cls.MANUAL
 
+
 class FreshAirSystem:
     """新风系统控制类"""
-    
+
     # 寄存器地址映射
     REGISTERS = {
         'power': 0,        # 电源控制
         'mode': 4,         # 运行模式
-        'supply_speed': 7, # 送风速度设置
-        'exhaust_speed': 8,# 排风速度设置
+        'supply_speed': 7,  # 送风速度设置
+        'exhaust_speed': 8,  # 排风速度设置
         'bypass': 9,       # 旁通开关
-        'actual_supply': 12,# 实际送风速度
-        'actual_exhaust': 13,# 实际排风速度
-        'temperature': 16, # 温度
+        'actual_supply': 12,  # 实际送风速度
+        'actual_exhaust': 13,  # 实际排风速度
+        'temperature': 16,  # 温度
         'humidity': 17,    # 湿度
     }
 
@@ -161,10 +165,10 @@ class FreshAirSystem:
         if self._registers_cache is None:
             if not self._read_all_registers():
                 return None
-    
+
         if self._registers_cache is None:
             return None
-        
+
         register_address = self.REGISTERS[register_name]
         start_address = min(self.REGISTERS.values())
         return self._registers_cache[register_address - start_address]
@@ -248,7 +252,7 @@ class FreshAirSystem:
         validated_speed = self._validate_speed(speed)
         self.logger.debug(f"Setting supply speed to: {validated_speed}")
         result = self.modbus.write_single_register(
-            self.REGISTERS['supply_speed'], 
+            self.REGISTERS['supply_speed'],
             validated_speed
         )
         if result:
@@ -265,7 +269,7 @@ class FreshAirSystem:
         validated_speed = self._validate_speed(speed)
         self.logger.debug(f"Setting exhaust speed to: {validated_speed}")
         result = self.modbus.write_single_register(
-            self.REGISTERS['exhaust_speed'], 
+            self.REGISTERS['exhaust_speed'],
             validated_speed
         )
         if result:
@@ -303,6 +307,7 @@ class FreshAirSystem:
         """获取湿度（%）"""
         value = self._get_register_value('humidity')
         return value / 10 if value is not None else None
+
 
 # 只在直接运行此文件时执行测试代码
 if __name__ == "__main__":
