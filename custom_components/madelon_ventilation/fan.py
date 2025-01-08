@@ -1,13 +1,18 @@
+from typing import Any, Optional
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
+# Helper function for percentage conversion
+from homeassistant.util.percentage import ordered_list_item_to_percentage, percentage_to_ordered_list_item
 from datetime import timedelta
 from .const import DOMAIN
 from .fresh_air_controller import FreshAirSystem, OperationMode
 import logging
+
+ORDERED_NAMED_FAN_SPEEDS = ["low", "medium", "high"]  # off is not included
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
@@ -35,15 +40,46 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 class FreshAirFan(FanEntity):
     def __init__(self, entry: ConfigEntry, system: FreshAirSystem):
         super().__init__()
-        self._attr_has_entity_name = True
         self._system = system
+        self._attr_has_entity_name = True
         self._attr_name = "Fresh Air Fan"
         self._attr_is_on = False
         self._attr_percentage = 0
         self._attr_unique_id = f"{DOMAIN}_fan_{system.unique_identifier}"
         self._attr_preset_modes = ["Manual", "Auto", "Timer", "Manual + Bypass", "Auto + Bypass", "Timer + Bypass"]
         self._attr_preset_mode = "Manual"
-        self._attr_supported_features = FanEntityFeature.SET_SPEED | FanEntityFeature.PRESET_MODE
+
+    # Properties
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information about this entity."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._system.unique_identifier)},
+            name="Fresh Air System",
+            manufacturer="Madelon",
+            model="XIXI",
+            sw_version="1.0",
+        )
+
+    @property
+    def supported_features(self):
+        """Flag supported features."""
+        return (
+            FanEntityFeature.SET_SPEED |
+            FanEntityFeature.TURN_ON |
+            FanEntityFeature.TURN_OFF |
+            FanEntityFeature.PRESET_MODE
+        )
+
+    @property
+    def is_on(self):
+        """Return true if the fan is on."""
+        return self._attr_is_on
+
+    @property
+    def percentage(self) -> Optional[int]:
+        """Return the current speed percentage."""
+        return ordered_list_item_to_percentage(ORDERED_NAMED_FAN_SPEEDS, self._system.supply_speed)
 
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added to hass."""
@@ -63,18 +99,26 @@ class FreshAirFan(FanEntity):
         if mode is not None:
             self._attr_preset_mode = self._convert_mode_to_preset(mode)
 
-    def turn_on(self, percentage=None, preset_mode=None, **kwargs):
-        """Turn the fan on."""
+    # def turn_on(self, percentage=None, preset_mode=None, **kwargs):
+    def turn_on(self, percentage: Optional[int] = None, preset_mode: Optional[str] = None, **kwargs: Any) -> None:
+        """Turn on the fan."""
         if percentage is not None:
             self.set_percentage(percentage)
         else:
             self._system.power = True
         self.update()
 
-    def turn_off(self, **kwargs):
+    def turn_off(self, **kwargs: Any) -> None:
         """Turn the fan off."""
         self._system.power = False
         self.update()
+
+    def toggle(self, **kwargs: Any) -> None:
+        """Toggle the fan."""
+        if self._attr_is_on:
+            self.turn_off(**kwargs)
+        else:
+            self.turn_on(**kwargs)
 
     def set_percentage(self, percentage: int):
         """Set the speed percentage of the fan."""
@@ -83,22 +127,10 @@ class FreshAirFan(FanEntity):
             return
 
         self._system.power = True
-        speed = self._percentage_to_speed(percentage)
+        speed = percentage_to_ordered_list_item(ORDERED_NAMED_FAN_SPEEDS, percentage)
         self._system.supply_speed = speed
         self._system.exhaust_speed = speed
         self.update()
-
-    def _get_percentage(self, speed: int) -> int:
-        """Convert speed 1-3 to percentage."""
-        if speed == 0:
-            return 0
-        return int((speed / 3) * 100)
-
-    def _percentage_to_speed(self, percentage: int) -> int:
-        """Convert percentage to speed 1-3."""
-        if percentage == 0:
-            return 0
-        return max(1, min(3, round((percentage / 100) * 3)))
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set the preset mode of the fan."""
@@ -130,29 +162,3 @@ class FreshAirFan(FanEntity):
             "Timer + Bypass": OperationMode.TIMER_BYPASS
         }
         return preset_map.get(preset, OperationMode.MANUAL)
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information about this entity."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._system.unique_identifier)},
-            name="Fresh Air System",
-            manufacturer="Madelon",
-            model="XIXI",
-            sw_version="1.0",
-        )
-
-    @property
-    def supported_features(self):
-        """Flag supported features."""
-        return (
-            FanEntityFeature.SET_SPEED |
-            FanEntityFeature.TURN_ON |
-            FanEntityFeature.TURN_OFF |
-            FanEntityFeature.PRESET_MODE
-        )
-
-    @property
-    def is_on(self):
-        """Return true if the fan is on."""
-        return self._attr_is_on

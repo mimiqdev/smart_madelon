@@ -174,9 +174,23 @@ class FreshAirSystem:
         return self._registers_cache[register_address - start_address]
 
     def _validate_speed(self, speed):
+        """Validate speed value (1-3)."""
+        if not isinstance(speed, (int, str)):
+            self.logger.error(f"Invalid speed type: {type(speed)}. Must be int or str.")
+            raise ValueError("Speed must be an integer or string")
+        
+        # Convert string speeds to numbers
+        speed_map = {"low": 1, "medium": 2, "high": 3}
+        if isinstance(speed, str):
+            if speed.lower() not in speed_map:
+                self.logger.error(f"Invalid speed string: {speed}. Must be 'low', 'medium', or 'high'.")
+                raise ValueError("Invalid speed string")
+            speed = speed_map[speed.lower()]
+        
         if not 1 <= speed <= 3:
             self.logger.error(f"Invalid speed: {speed}. Must be between 1 and 3.")
-            raise ValueError("风速必须在1-3之间")
+            raise ValueError("Speed must be between 1-3")
+            
         self.logger.debug(f"Validated speed: {speed}")
         return speed
 
@@ -243,12 +257,14 @@ class FreshAirSystem:
 
     @property
     def supply_speed(self):
-        """获取送风速度设置"""
-        return self._get_register_value('supply_speed')
+        """Get supply speed setting as string."""
+        value = self._get_register_value('supply_speed')
+        speed_map = {1: "low", 2: "medium", 3: "high"}
+        return speed_map.get(value) if value is not None else None
 
     @supply_speed.setter
-    def supply_speed(self, speed: int):
-        """设置送风速度"""
+    def supply_speed(self, speed):
+        """Set supply speed using either string or integer value."""
         validated_speed = self._validate_speed(speed)
         self.logger.debug(f"Setting supply speed to: {validated_speed}")
         result = self.modbus.write_single_register(
@@ -260,12 +276,14 @@ class FreshAirSystem:
 
     @property
     def exhaust_speed(self):
-        """获取排风速度设置"""
-        return self._get_register_value('exhaust_speed')
+        """Get exhaust speed setting as string."""
+        value = self._get_register_value('exhaust_speed')
+        speed_map = {1: "low", 2: "medium", 3: "high"}
+        return speed_map.get(value) if value is not None else None
 
     @exhaust_speed.setter
-    def exhaust_speed(self, speed: int):
-        """设置排风速度"""
+    def exhaust_speed(self, speed):
+        """Set exhaust speed using either string or integer value."""
         validated_speed = self._validate_speed(speed)
         self.logger.debug(f"Setting exhaust speed to: {validated_speed}")
         result = self.modbus.write_single_register(
