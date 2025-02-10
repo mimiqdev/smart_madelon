@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Dict, List, cast
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -38,6 +38,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 
 class FreshAirFan(FanEntity):
+    PRESET_MANUAL = "Manual"
+    PRESET_AUTO = "Auto"
+    PRESET_TIMER = "Timer"
+    PRESET_MANUAL_BYPASS = "Manual + Bypass"
+    PRESET_AUTO_BYPASS = "Auto + Bypass"
+    PRESET_TIMER_BYPASS = "Timer + Bypass"
+
     def __init__(self, entry: ConfigEntry, system: FreshAirSystem):
         super().__init__()
         self._system = system
@@ -46,7 +53,14 @@ class FreshAirFan(FanEntity):
         self._attr_is_on = False
         self._attr_percentage = 0
         self._attr_unique_id = f"{DOMAIN}_fan_{system.unique_identifier}"
-        self._attr_preset_modes = ["Manual", "Auto", "Timer", "Manual + Bypass", "Auto + Bypass", "Timer + Bypass"]
+        self._attr_preset_modes = [
+            self.PRESET_MANUAL,
+            self.PRESET_AUTO,
+            self.PRESET_TIMER,
+            self.PRESET_MANUAL_BYPASS,
+            self.PRESET_AUTO_BYPASS,
+            self.PRESET_TIMER_BYPASS
+        ]
         self._attr_preset_mode = "Manual"
 
     # Properties
@@ -99,9 +113,21 @@ class FreshAirFan(FanEntity):
         if mode is not None:
             self._attr_preset_mode = self._convert_mode_to_preset(mode)
 
-    # def turn_on(self, percentage=None, preset_mode=None, **kwargs):
     def turn_on(self, percentage: Optional[int] = None, preset_mode: Optional[str] = None, **kwargs: Any) -> None:
-        """Turn on the fan."""
+        """Turn on the fan.
+
+        Args:
+            percentage: Optional speed percentage to set (0-100). If provided,
+                       the fan will turn on at this speed.
+            preset_mode: Optional preset mode to set. Not currently implemented.
+            **kwargs: Additional arguments that might be supported in the future.
+
+        Returns:
+            None
+
+        Note:
+            If no percentage is provided, the fan will turn on at its last known speed.
+        """
         if percentage is not None:
             self.set_percentage(percentage)
         else:
@@ -109,7 +135,17 @@ class FreshAirFan(FanEntity):
         self.update()
 
     def turn_off(self, **kwargs: Any) -> None:
-        """Turn the fan off."""
+        """Turn the fan off.
+
+        Args:
+            **kwargs: Additional arguments that might be supported in the future.
+
+        Returns:
+            None
+
+        Note:
+            This will completely stop the fan and set its state to off.
+        """
         self._system.power = False
         self.update()
 
