@@ -25,24 +25,34 @@ class ModbusClient:
         self.logger = logging.getLogger(__name__)
         self.retry_count = 3
         self.retry_delay = 1  # seconds
+        self.connection_timeout = 10  # 连接超时时间（秒）
 
     def _ensure_connected(self):
         """Ensure connection is established with retry mechanism"""
+        start_time = time.time()
         for attempt in range(self.retry_count):
             try:
+                if time.time() - start_time > self.connection_timeout:
+                    self.logger.error("Connection timeout")
+                    return False
+                    
                 if self.client is None:
                     self.client = ModbusTcpClient(host=self.host, port=self.port)
                 if not self.client.connected:
                     self.client.connect()
                 return True
+            except ConnectionRefusedError as e:
+                self.logger.error(f"Connection refused: {e}")
+            except TimeoutError as e:
+                self.logger.error(f"Connection timeout: {e}")
             except ConnectionError as e:
-                self.logger.error(f"Connection attempt {attempt + 1} failed: {e}")
-                if attempt < self.retry_count - 1:
-                    time.sleep(self.retry_delay)
-                continue
+                self.logger.error(f"Connection error: {e}")
             except Exception as e:
                 self.logger.error(f"Unexpected error: {e}")
                 raise
+                
+            if attempt < self.retry_count - 1:
+                time.sleep(self.retry_delay)
         return False
 
     def read_registers(self, start_address, count):
@@ -62,9 +72,6 @@ class ModbusClient:
         except Exception as e:
             self.logger.error(f"Error reading registers: {e}")
             return None
-        finally:
-            if self.client and self.client.connected:
-                self.client.close()
 
     def write_single_register(self, address, value):
         """Write a single register."""
@@ -83,9 +90,11 @@ class ModbusClient:
         except Exception as e:
             self.logger.error(f"Error writing register: {e}")
             return False
-        finally:
-            if self.client and self.client.connected:
-                self.client.close()
+
+    def close(self):
+        """显式关闭连接"""
+        if self.client and self.client.connected:
+            self.client.close()
 
 
 __all__ = ['FreshAirSystem', 'OperationMode']
@@ -134,13 +143,24 @@ class FreshAirSystem:
         self.logger = logging.getLogger(__name__)
         self.logger.debug(f"Initialized FreshAirSystem with host: {host}, port: {port}")
         self.sensors = []  # List to hold sensor entities
+        self._cache_timestamp = None
+        self._cache_ttl = 30  # 缓存有效期（秒）
 
     def register_sensor(self, sensor):
         """Register a sensor entity with the system."""
         self.sensors.append(sensor)
 
-    def _read_all_registers(self):
+    def _is_cache_valid(self):
+        """检查缓存是否有效"""
+        if self._cache_timestamp is None or self._registers_cache is None:
+            return False
+        return (time.time() - self._cache_timestamp) < self._cache_ttl
+
+    def _read_all_registers(self, force_refresh=False):
         """一次性读取所有相关寄存器"""
+        if not force_refresh and self._is_cache_valid():
+            return True
+            
         try:
             start_address = min(self.REGISTERS.values())
             count = max(self.REGISTERS.values()) - start_address + 1
@@ -148,6 +168,7 @@ class FreshAirSystem:
             response = self.modbus.read_registers(start_address, count)
             if response and hasattr(response, 'registers'):
                 self._registers_cache = response.registers
+                self._cache_timestamp = time.time()
                 self.logger.debug(f"Registers read: {self._registers_cache}")
 
                 # Update all registered sensors
@@ -332,20 +353,26 @@ if __name__ == "__main__":
     def test_fresh_air_system():
         host = "192.168.6.137"
         # host="127.0.0.1"
-        system = FreshAirSystem(host)
+        system = FreshAirSystem(host, 8899, 1)
 
         # 读取所有状态
-        # print(f"电源状态: {system.power}")
-        # print(f"运行模式: {system.mode}")
-        # print(f"送风速度设置: {system.supply_speed}")
-        # print(f"排风速度设置: {system.exhaust_speed}")
-        # print(f"旁通状态: {system.bypass}")
-        # print(f"实际送风速度: {system.actual_supply_speed}")
-        # print(f"实际排风速度: {system.actual_exhaust_speed}")
-        # print(f"温度: {system.temperature}°C")
-        # print(f"湿度: {system.humidity}%")
-
-        system.power = False
         print(f"电源状态: {system.power}")
+        print(f"运行模式: {system.mode}")
+        print(f"送风速度设置: {system.supply_speed}")
+        print(f"排风速度设置: {system.exhaust_speed}")
+        print(f"旁通状态: {system.bypass}")
+        print(f"实际送风速度: {system.actual_supply_speed}")
+        print(f"实际排风速度: {system.actual_exhaust_speed}")
+        print(f"温度: {system.temperature}°C")
+        print(f"湿度: {system.humidity}%")
+
+        # system.power = True
+        system.exhaust_speed = 1
+        system.supply_speed = 1
+        # print(f"电源状态: {system.power}")
+        print(f"实际送风速度: {system.actual_supply_speed}")
+        print(f"实际排风速度: {system.actual_exhaust_speed}")
+        print(f"温度: {system.temperature}°C")
+        print(f"湿度: {system.humidity}%")
 
     test_fresh_air_system()
