@@ -145,6 +145,7 @@ class FreshAirSystem:
         self.sensors = []  # List to hold sensor entities
         self._cache_timestamp = None
         self._cache_ttl = 30  # 缓存有效期（秒）
+        self._is_reading = False  # 添加读取锁
 
     def register_sensor(self, sensor):
         """Register a sensor entity with the system."""
@@ -161,7 +162,13 @@ class FreshAirSystem:
         if not force_refresh and self._is_cache_valid():
             return True
             
+        # 防止重复读取
+        if self._is_reading:
+            self.logger.debug("Already reading registers, skipping duplicate read")
+            return True
+
         try:
+            self._is_reading = True
             start_address = min(self.REGISTERS.values())
             count = max(self.REGISTERS.values()) - start_address + 1
             self.logger.debug(f"Reading all registers from {start_address} to {start_address + count - 1}")
@@ -180,6 +187,8 @@ class FreshAirSystem:
             self.logger.error(f"Error reading registers: {e}")
             self._registers_cache = None
             return False
+        finally:
+            self._is_reading = False
 
     def _get_register_value(self, register_name):
         """获取寄存器值"""
@@ -241,13 +250,24 @@ class FreshAirSystem:
     def mode(self):
         """获取运行模式"""
         value = self._get_register_value('mode')
-        return self._convert_mode_value(value) if value is not None else None
+        self.logger.debug(f"Raw mode register value: {value}")
+        if value is None:
+            return None
+        
+        # 确保值在有效范围内
+        if not 0 <= value <= 5:
+            self.logger.warning(f"Invalid mode value: {value}, defaulting to MANUAL")
+            return OperationMode.MANUAL
+        
+        converted_mode = self._convert_mode_value(value)
+        self.logger.debug(f"Mode property returning: {converted_mode} (from value: {value})")
+        return converted_mode
 
     @mode.setter
-    def mode(self, mode: str):
+    def mode(self, mode: OperationMode):
         """设置运行模式"""
         value = self._convert_mode_string(mode)
-        self.logger.debug(f"Setting mode to: {mode} (value: {value})")
+        self.logger.debug(f"Setting mode to: {mode.value} (register value: {value})")
         result = self.modbus.write_single_register(self.REGISTERS['mode'], value)
         if result:
             self._update_cache_value('mode', value)
@@ -262,7 +282,9 @@ class FreshAirSystem:
             4: OperationMode.AUTO_BYPASS,
             5: OperationMode.TIMER_BYPASS
         }
-        return mode_map.get(value, OperationMode.MANUAL)
+        converted_mode = mode_map.get(value, OperationMode.MANUAL)
+        self.logger.debug(f"Converting mode value {value} to {converted_mode}")
+        return converted_mode
 
     def _convert_mode_string(self, mode: OperationMode) -> int:
         """Convert OperationMode to register value."""

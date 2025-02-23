@@ -22,22 +22,19 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     fan = FreshAirFan(config_entry, system)
     async_add_entities([fan])
 
-    # 修改更新机制
+    # Schedule regular updates
     async def async_update(now=None):
         """Update the entity."""
         try:
-            # 直接调用同步的 update 方法
             await hass.async_add_executor_job(fan.update)
-            # 使用 write_ha_state 而不是 async_schedule_update_ha_state
-            fan.async_write_ha_state()
+            # 只有当实体已经添加到 hass 后才调用 async_write_ha_state
+            if fan.hass:
+                await fan.async_write_ha_state()
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error updating fan state: {e}", exc_info=True)
+            logging.getLogger(__name__).error(f"Error updating fan state: {e}")
 
-    # 设置定期更新
-    hass.helpers.event.async_track_time_interval(
-        async_update,
-        timedelta(seconds=30)
-    )
+    # 使用事件调度器设置定期更新
+    async_track_time_interval(hass, async_update, timedelta(seconds=30))
 
 
 class FreshAirFan(FanEntity):
@@ -52,7 +49,7 @@ class FreshAirFan(FanEntity):
         super().__init__()
         self._system = system
         self._attr_has_entity_name = True
-        self._attr_name = "Fresh Air Fan"
+        self._attr_name = "Fan"
         self._attr_is_on = False
         self._attr_percentage = 0
         self._attr_unique_id = f"{DOMAIN}_fan_{system.unique_identifier}"
@@ -112,11 +109,7 @@ class FreshAirFan(FanEntity):
         mode = self._system.mode
 
         self._attr_is_on = power if power is not None else False
-        if speed is not None:
-            self._attr_percentage = ordered_list_item_to_percentage(ORDERED_NAMED_FAN_SPEEDS, speed)
-        else:
-            self._attr_percentage = 0
-            
+        self._attr_percentage = self._get_percentage(speed if speed is not None else 0)
         if mode is not None:
             self._attr_preset_mode = self._convert_mode_to_preset(mode)
 
@@ -178,16 +171,9 @@ class FreshAirFan(FanEntity):
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set the preset mode of the fan."""
         if preset_mode in self._attr_preset_modes:
-            try:
-                mode = self._convert_preset_to_mode(preset_mode)
-                # 直接设置模式
-                await self.hass.async_add_executor_job(setattr, self._system, 'mode', mode)
-                # 更新状态
-                await self.hass.async_add_executor_job(self.update)
-                # 通知 HA 状态已更新
-                self.async_write_ha_state()
-            except Exception as e:
-                logging.getLogger(__name__).error(f"Error setting preset mode: {e}", exc_info=True)
+            mode = self._convert_preset_to_mode(preset_mode)
+            self._system.mode = mode
+            self.update()
 
     def _convert_mode_to_preset(self, mode: OperationMode) -> str:
         """Convert system mode to preset mode."""
