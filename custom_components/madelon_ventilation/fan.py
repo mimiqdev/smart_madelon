@@ -22,19 +22,22 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     fan = FreshAirFan(config_entry, system)
     async_add_entities([fan])
 
-    # Schedule regular updates
+    # 修改更新机制
     async def async_update(now=None):
         """Update the entity."""
         try:
+            # 直接调用同步的 update 方法
             await hass.async_add_executor_job(fan.update)
-            # 只有当实体已经添加到 hass 后才调用 async_write_ha_state
-            if fan.hass:
-                await fan.async_write_ha_state()
+            # 使用 write_ha_state 而不是 async_schedule_update_ha_state
+            fan.async_write_ha_state()
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error updating fan state: {e}")
+            logging.getLogger(__name__).error(f"Error updating fan state: {e}", exc_info=True)
 
-    # 使用事件调度器设置定期更新
-    async_track_time_interval(hass, async_update, timedelta(seconds=30))
+    # 设置定期更新
+    hass.helpers.event.async_track_time_interval(
+        async_update,
+        timedelta(seconds=30)
+    )
 
 
 class FreshAirFan(FanEntity):
@@ -175,9 +178,16 @@ class FreshAirFan(FanEntity):
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set the preset mode of the fan."""
         if preset_mode in self._attr_preset_modes:
-            mode = self._convert_preset_to_mode(preset_mode)
-            self._system.mode = mode
-            self.update()
+            try:
+                mode = self._convert_preset_to_mode(preset_mode)
+                # 直接设置模式
+                await self.hass.async_add_executor_job(setattr, self._system, 'mode', mode)
+                # 更新状态
+                await self.hass.async_add_executor_job(self.update)
+                # 通知 HA 状态已更新
+                self.async_write_ha_state()
+            except Exception as e:
+                logging.getLogger(__name__).error(f"Error setting preset mode: {e}", exc_info=True)
 
     def _convert_mode_to_preset(self, mode: OperationMode) -> str:
         """Convert system mode to preset mode."""
