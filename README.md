@@ -39,8 +39,8 @@ Download integration, then add integration:
 Config your RS485 Module IP address, port and device id:
 ![Step 4](assets/step4.png)
 
-You will find 5 new entities:
-![Result](assets/result.jpg)
+You will find 6 new entities:
+![Result](assets/result.png)
 
 
 ### Example configuration.yaml section
@@ -49,7 +49,8 @@ homekit:
   - filter:
       include_entities:
         # 新风
-        - fan.fresh_air_system_fan
+        - fan.fresh_air_system_supply_fan
+        - fan.fresh_air_system_exhaust_fan
         - switch.fresh_air_system_auto_mode
         - switch.fresh_air_system_bypass
     entity_config:
@@ -63,13 +64,26 @@ homekit:
 ```
 type: custom:stack-in-card
 cards:
-  - type: custom:mushroom-fan-card
-    entity: fan.fresh_air_system_fan
-    icon: mdi:hvac
-    fill_container: true
-    show_percentage_control: true
-    show_oscillate_control: false
-    layout: horizontal
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      - type: custom:mushroom-fan-card
+        entity: fan.fresh_air_system_supply_fan
+        icon: mdi:hvac
+        fill_container: true
+        show_percentage_control: true
+        show_oscillate_control: false
+        layout: horizontal
+        name: Supply Fan
+      - type: custom:mushroom-fan-card
+        entity: fan.fresh_air_system_exhaust_fan
+        icon: mdi:hvac-off
+        fill_container: true
+        show_percentage_control: true
+        show_oscillate_control: false
+        layout: horizontal
+        name: Exhaust Fan
   - type: grid
     columns: 2
     square: false
@@ -134,9 +148,9 @@ style: |
 
 ## TODO list
 
-- [x]Fan speed control with on/off
-- [x]Mode selection
-- [ ]Support timer feature
-- [ ]Separate supply air and exhaust air speed control
-- [ ]Add more stats as sensors and switches
+- [x] Fan speed control with on/off
+- [x] Mode selection
+- [ ] Support timer feature
+- [x] Separate supply air and exhaust air speed control
+- [ ] Add more stats as sensors and switches
 
