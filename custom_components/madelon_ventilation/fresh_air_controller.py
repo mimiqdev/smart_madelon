@@ -35,7 +35,7 @@ class ModbusClient:
                 if time.time() - start_time > self.connection_timeout:
                     self.logger.error("Connection timeout")
                     return False
-                    
+
                 if self.client is None:
                     self.client = ModbusTcpClient(host=self.host, port=self.port)
                 if not self.client.connected:
@@ -50,7 +50,7 @@ class ModbusClient:
             except Exception as e:
                 self.logger.error(f"Unexpected error: {e}")
                 raise
-                
+
             if attempt < self.retry_count - 1:
                 time.sleep(self.retry_delay)
         return False
@@ -158,7 +158,7 @@ class FreshAirSystem:
         """一次性读取所有相关寄存器"""
         if not force_refresh and self._is_cache_valid():
             return True
-            
+
         # 防止重复读取
         if self._is_reading:
             self.logger.debug("Already reading registers, skipping duplicate read")
@@ -205,7 +205,7 @@ class FreshAirSystem:
         if not isinstance(speed, (int, str)):
             self.logger.error(f"Invalid speed type: {type(speed)}. Must be int or str.")
             raise ValueError("Speed must be an integer or string")
-        
+
         # Convert string speeds to numbers
         speed_map = {"low": 1, "medium": 2, "high": 3}
         if isinstance(speed, str):
@@ -213,11 +213,11 @@ class FreshAirSystem:
                 self.logger.error(f"Invalid speed string: {speed}. Must be 'low', 'medium', or 'high'.")
                 raise ValueError("Invalid speed string")
             speed = speed_map[speed.lower()]
-        
+
         if not 1 <= speed <= 3:
             self.logger.error(f"Invalid speed: {speed}. Must be between 1 and 3.")
             raise ValueError("Speed must be between 1-3")
-            
+
         self.logger.debug(f"Validated speed: {speed}")
         return speed
 
@@ -250,12 +250,12 @@ class FreshAirSystem:
         self.logger.debug(f"Raw mode register value: {value}")
         if value is None:
             return None
-        
+
         # 确保值在有效范围内
         if not 0 <= value <= 5:
             self.logger.warning(f"Invalid mode value: {value}, defaulting to MANUAL")
             return OperationMode.MANUAL
-        
+
         converted_mode = self._convert_mode_value(value)
         self.logger.debug(f"Mode property returning: {converted_mode} (from value: {value})")
         return converted_mode
