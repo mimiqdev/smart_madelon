@@ -12,4 +12,4 @@ CONF_UNIT_ID = "unit_id"
 # Device information
 DEVICE_MANUFACTURER = "Madelon"
 DEVICE_MODEL = "Jinmaofu"
-DEVICE_SW_VERSION = "0.2.2"
+DEVICE_SW_VERSION = "0.4.0"

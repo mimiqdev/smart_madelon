@@ -123,6 +123,9 @@ class FreshAirSystem:
     # 寄存器地址映射
     REGISTERS = {
         'power': 0,        # 电源控制
+        'filter_usage_time': 1,  # 滤网使用时间（只读）
+        'filter_reminder_setting': 2,  # 滤网使用时间提醒设置
+        'filter_reminder': 3,  # 滤网提醒状态（只读）
         'mode': 4,         # 运行模式
         'supply_speed': 7,  # 送风速度设置
         'exhaust_speed': 8,  # 排风速度设置
@@ -357,6 +360,45 @@ class FreshAirSystem:
         """获取湿度（%）"""
         value = self._get_register_value('humidity')
         return value / 10 if value is not None else None
+
+    @property
+    def filter_usage_time(self):
+        """获取滤网使用时间（小时）"""
+        return self._get_register_value('filter_usage_time')
+
+    @property
+    def filter_reminder_setting(self):
+        """获取滤网提醒设置时间（小时）"""
+        return self._get_register_value('filter_reminder_setting')
+
+    @filter_reminder_setting.setter
+    def filter_reminder_setting(self, hours: int):
+        """设置滤网提醒时间（小时）"""
+        if not isinstance(hours, int) or not 0 <= hours <= 6000:
+            self.logger.error(f"Invalid filter reminder setting: {hours}. Must be between 0-6000 hours.")
+            raise ValueError("Filter reminder setting must be between 0-6000 hours")
+        
+        self.logger.debug(f"Setting filter reminder to: {hours} hours")
+        result = self.modbus.write_single_register(self.REGISTERS['filter_reminder_setting'], hours)
+        if result:
+            self._update_cache_value('filter_reminder_setting', hours)
+
+    @property
+    def filter_reminder(self):
+        """获取滤网提醒状态（0无提醒，1提醒）"""
+        value = self._get_register_value('filter_reminder')
+        return bool(value) if value is not None else None
+
+    def reset_filter_usage_time(self):
+        """重置滤网使用时间（写入1清除提醒）"""
+        self.logger.debug("Resetting filter usage time")
+        result = self.modbus.write_single_register(self.REGISTERS['filter_usage_time'], 1)
+        if result:
+            # 重置后，使用时间应该变为0
+            self._update_cache_value('filter_usage_time', 0)
+            # 强制刷新缓存以获取最新状态
+            self._read_all_registers(force_refresh=True)
+        return result
 
 
 # 只在直接运行此文件时执行测试代码

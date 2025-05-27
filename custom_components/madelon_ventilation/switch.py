@@ -31,8 +31,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         
         # Create switches
         switches = [
-            MadelonAutoModeSwitch(system),
-            MadelonBypassSwitch(system),
+            MadelonAutoModeSwitch(entry, system),
+            MadelonBypassSwitch(entry, system),
         ]
         
         # Set initial states
@@ -48,11 +48,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 class MadelonAutoModeSwitch(SwitchEntity):
     """Representation of a Madelon Ventilation auto/manual mode switch."""
 
-    def __init__(self, system: FreshAirSystem):
+    def __init__(self, entry: ConfigEntry, system: FreshAirSystem):
         """Initialize the switch."""
         self._system = system
         self._attr_name = "Auto Mode"
-        self._attr_unique_id = f"{system.unique_identifier}_auto_mode"
+        self._attr_unique_id = f"{entry.entry_id}_auto_mode"
         self._attr_has_entity_name = True
         self._is_on = False
 
@@ -129,11 +129,11 @@ class MadelonAutoModeSwitch(SwitchEntity):
 class MadelonBypassSwitch(SwitchEntity):
     """Representation of a Madelon Ventilation bypass switch."""
 
-    def __init__(self, system: FreshAirSystem):
+    def __init__(self, entry: ConfigEntry, system: FreshAirSystem):
         """Initialize the bypass switch."""
         self._system = system
         self._attr_name = "Bypass"
-        self._attr_unique_id = f"{system.unique_identifier}_bypass"
+        self._attr_unique_id = f"{entry.entry_id}_bypass"
         self._attr_has_entity_name = True
         self._is_on = False
 
