@@ -61,7 +61,7 @@ class FreshAirFan(FanEntity):
         self._attr_name = f"{fan_type.capitalize()} Fan"
         self._attr_is_on = False
         self._attr_percentage = 0
-        self._attr_unique_id = f"{DOMAIN}_{self._fan_type}_fan_{system.unique_identifier}"
+        self._attr_unique_id = f"{entry.entry_id}_{self._fan_type}_fan"
         # Remove preset modes to prevent them from showing in HomeKit
         self._attr_preset_modes = None
         self._attr_preset_mode = None
