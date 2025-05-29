@@ -52,7 +52,7 @@ class MadelonAutoModeSwitch(SwitchEntity):
         """Initialize the switch."""
         self._system = system
         self._attr_name = "Auto Mode"
-        self._attr_unique_id = f"{entry.entry_id}_auto_mode"
+        self._attr_unique_id = f"{DOMAIN}_{system.unique_identifier}_auto_mode"
         self._attr_has_entity_name = True
         self._is_on = False
 
@@ -133,7 +133,7 @@ class MadelonBypassSwitch(SwitchEntity):
         """Initialize the bypass switch."""
         self._system = system
         self._attr_name = "Bypass"
-        self._attr_unique_id = f"{entry.entry_id}_bypass"
+        self._attr_unique_id = f"{DOMAIN}_{system.unique_identifier}_bypass"
         self._attr_has_entity_name = True
         self._is_on = False
 

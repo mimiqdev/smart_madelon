@@ -47,7 +47,7 @@ class FreshAirTemperatureSensor(SensorEntity):
     def __init__(self, entry: ConfigEntry, system):
         super().__init__()
         self._system = system
-        self._attr_unique_id = f"{entry.entry_id}_temperature"
+        self._attr_unique_id = f"{DOMAIN}_{system.unique_identifier}_temperature"
         self._attr_native_value = None
 
     @property
@@ -76,7 +76,7 @@ class FreshAirHumiditySensor(SensorEntity):
     def __init__(self, entry: ConfigEntry, system):
         super().__init__()
         self._system = system
-        self._attr_unique_id = f"{entry.entry_id}_humidity"
+        self._attr_unique_id = f"{DOMAIN}_{system.unique_identifier}_humidity"
         self._attr_native_value = None
 
     @property
@@ -105,7 +105,7 @@ class FreshAirFilterUsageSensor(SensorEntity):
     def __init__(self, entry: ConfigEntry, system):
         super().__init__()
         self._system = system
-        self._attr_unique_id = f"{entry.entry_id}_filter_usage_time"
+        self._attr_unique_id = f"{DOMAIN}_{system.unique_identifier}_filter_usage_time"
         self._attr_native_value = None
 
     @property
