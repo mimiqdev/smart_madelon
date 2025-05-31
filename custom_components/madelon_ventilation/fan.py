@@ -33,18 +33,29 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     # Schedule regular updates
     async def async_update(now=None):
         """Update the entities."""
+        logging.getLogger(__name__).debug("Updating fan and sensor states...")
         try:
             # Update both fans
             await hass.async_add_executor_job(supply_fan.update)
             await hass.async_add_executor_job(exhaust_fan.update)
 
-            # Update states
+            # Update states for fans
             if supply_fan.hass and supply_fan.available:
                 supply_fan.async_write_ha_state()
             if exhaust_fan.hass and exhaust_fan.available:
                 exhaust_fan.async_write_ha_state()
+
+            # Update sensors
+            sensors = hass.data[DOMAIN][config_entry.entry_id].get("sensors", [])
+            for sensor in sensors:
+                if sensor.hass and sensor.should_poll:  # Ensure sensor is added and needs polling
+                    await hass.async_add_executor_job(sensor.update)
+                    if sensor.available:
+                        sensor.async_write_ha_state()
+                        logging.getLogger(__name__).debug(f"Sensor {sensor.name} data updated. New native_value: {sensor.native_value}")
+
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error updating fan states: {e}", exc_info=True)
+            logging.getLogger(__name__).error(f"Error updating fan and sensor states: {e}", exc_info=True)
 
     # Use event scheduler for periodic updates
     async_track_time_interval(hass, async_update, timedelta(seconds=30))

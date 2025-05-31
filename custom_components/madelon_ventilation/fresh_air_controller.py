@@ -192,16 +192,36 @@ class FreshAirSystem:
 
     def _get_register_value(self, register_name):
         """获取寄存器值"""
-        if self._registers_cache is None:
-            if not self._read_all_registers():
-                return None
+        # Attempt to read/refresh registers if cache is invalid.
+        # _read_all_registers() will only perform a read if the cache is stale or force_refresh is True.
+        # We pass force_refresh=False to respect the cache TTL.
+        self._read_all_registers(force_refresh=False)
 
         if self._registers_cache is None:
+            self.logger.warning(f"Cannot get register value for '{register_name}': register cache is empty after attempting refresh.")
             return None
 
-        register_address = self.REGISTERS[register_name]
-        start_address = min(self.REGISTERS.values())
-        return self._registers_cache[register_address - start_address]
+        try:
+            register_address = self.REGISTERS[register_name]
+            # The start_address for the cache array is the minimum address in REGISTERS
+            start_address_in_cache = min(self.REGISTERS.values())
+            # Calculate the index in the _registers_cache array
+            index_in_cache = register_address - start_address_in_cache
+
+            if 0 <= index_in_cache < len(self._registers_cache):
+                return self._registers_cache[index_in_cache]
+            else:
+                self.logger.error(
+                    f"Calculated index {index_in_cache} for register '{register_name}' is out of bounds "
+                    f"for cache of size {len(self._registers_cache)}."
+                )
+                return None
+        except KeyError:
+            self.logger.error(f"Register name '{register_name}' not found in REGISTERS definition.")
+            return None
+        except Exception as e: # Catch any other unexpected errors during cache access
+            self.logger.error(f"Unexpected error retrieving '{register_name}' from cache: {e}")
+            return None
 
     def _validate_speed(self, speed):
         """Validate speed value (1-3)."""
