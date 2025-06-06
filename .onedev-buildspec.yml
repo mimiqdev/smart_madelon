@@ -1,0 +1,18 @@
+version: 40
+jobs:
+- name: Push to Github
+  steps:
+  - !PushRepository
+    name: Push to Github
+    remoteUrl: https://github.com/mimiqdev/smart_madelon
+    passwordSecret: Github
+    force: false
+    condition: SUCCESSFUL
+    optional: false
+  triggers:
+  - !BranchUpdateTrigger {}
+  - !TagCreateTrigger {}
+  retryCondition: never
+  maxRetries: 3
+  retryDelay: 30
+  timeout: 14400
