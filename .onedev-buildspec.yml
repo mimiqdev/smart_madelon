@@ -16,3 +16,22 @@ jobs:
   maxRetries: 3
   retryDelay: 30
   timeout: 14400
+- name: Pull from Github
+  steps:
+  - !PullRepository
+    name: pull
+    remoteUrl: https://github.com/mimiqdev/smart_madelon
+    passwordSecret: Github
+    refs: refs/heads/* refs/tags/*
+    withLfs: false
+    force: false
+    condition: SUCCESSFUL
+    optional: false
+  triggers:
+  - !ScheduleTrigger
+    cronExpression: 0 * * * * ?
+    branches: '*'
+  retryCondition: never
+  maxRetries: 3
+  retryDelay: 30
+  timeout: 14400
