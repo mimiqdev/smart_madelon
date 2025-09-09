@@ -63,7 +63,7 @@ class ModbusClient:
             response = self.client.read_holding_registers(
                 address=start_address,
                 count=count,
-                unit=self.unit_id
+                device_id=self.unit_id
             )
             if isinstance(response, ExceptionResponse):
                 self.logger.error(f"Error reading registers: {response}")
@@ -81,7 +81,7 @@ class ModbusClient:
             response = self.client.write_register(
                 address=address,
                 value=value,
-                unit=self.unit_id
+                device_id=self.unit_id
             )
             if isinstance(response, ExceptionResponse):
                 self.logger.error(f"Error writing register: {response}")
