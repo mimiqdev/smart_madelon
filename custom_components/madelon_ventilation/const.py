@@ -1,4 +1,5 @@
 """Constants for the Madelon Ventilation integration."""
+
 DOMAIN = "madelon_ventilation"
 
 DEFAULT_SCAN_INTERVAL = 60

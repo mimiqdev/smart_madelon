@@ -21,8 +21,15 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 
-# from .api import API, APIAuthError, APIConnectionError
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, MIN_SCAN_INTERVAL, DEFAULT_PORT, DEFAULT_UNIT_ID, CONF_UNIT_ID
+from .fresh_air_controller import FreshAirSystem
+from .const import (
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    MIN_SCAN_INTERVAL,
+    DEFAULT_PORT,
+    DEFAULT_UNIT_ID,
+    CONF_UNIT_ID,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,12 +45,23 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect."""
-    # Simply return the title without attempting connection
+    system = FreshAirSystem(
+        host=data[CONF_HOST],
+        port=data.get(CONF_PORT, DEFAULT_PORT),
+        unit_id=data.get(CONF_UNIT_ID, DEFAULT_UNIT_ID),
+    )
+
+    # Attempt to read registers to validate connection
+    success = await hass.async_add_executor_job(system._read_all_registers, True)
+
+    if not success:
+        raise CannotConnect
+
     return {"title": f"Fresh Air System - {data[CONF_HOST]}"}
 
 
-class ExampleConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Example Integration."""
+class MadelonVentilationConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Madelon Ventilation."""
 
     VERSION = 1
     _input_data: dict[str, Any]
@@ -52,9 +70,7 @@ class ExampleConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
-        # Remove this method and the ExampleOptionsFlowHandler class
-        # if you do not want any options for your integration.
-        return ExampleOptionsFlowHandler(config_entry)
+        return MadelonVentilationOptionsFlowHandler(config_entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -83,10 +99,6 @@ class ExampleConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Add reconfigure step to allow to reconfigure a config entry."""
-        # This methid displays a reconfigure option in the integration and is
-        # different to options.
-        # It can be used to reconfigure any of the data submitted when first installed.
-        # This is optional and can be removed if you do not want to allow reconfiguration.
         errors: dict[str, str] = {}
         config_entry = self.hass.config_entries.async_get_entry(
             self.context["entry_id"]
@@ -96,10 +108,6 @@ class ExampleConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 user_input[CONF_HOST] = config_entry.data[CONF_HOST]
                 await validate_input(self.hass, user_input)
-            # except CannotConnect:
-            #     errors["base"] = "cannot_connect"
-            # except InvalidAuth:
-            #     errors["base"] = "invalid_auth"
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
@@ -112,19 +120,12 @@ class ExampleConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=vol.Schema(
-                # {
-                    # vol.Required(
-                    #     CONF_USERNAME, default=config_entry.data[CONF_USERNAME]
-                    # ): str,
-                    # vol.Required(CONF_PASSWORD): str,
-                # }
-            ),
+            data_schema=vol.Schema({}),
             errors=errors,
         )
 
 
-class ExampleOptionsFlowHandler(OptionsFlow):
+class MadelonVentilationOptionsFlowHandler(OptionsFlow):
     """Handles the options flow."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:

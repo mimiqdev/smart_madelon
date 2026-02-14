@@ -7,16 +7,11 @@ from .const import (
     DEVICE_MODEL,
     DEVICE_SW_VERSION,
 )
-from .fresh_air_controller import FreshAirSystem
 from homeassistant.components.sensor import (
     SensorDeviceClass,
-    SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfTemperature, PERCENTAGE, CONF_HOST, UnitOfTime
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.const import UnitOfTemperature, PERCENTAGE, UnitOfTime
 import logging
 
 
@@ -135,8 +130,11 @@ class FreshAirFilterUsageSensor(SensorEntity):
         """Update the sensor."""
         try:
             self._attr_native_value = self._system.filter_usage_time
-            logging.getLogger(__name__).debug(f"Filter usage time updated: {self._attr_native_value} hours")
+            logging.getLogger(__name__).debug(
+                f"Filter usage time updated: {self._attr_native_value} hours"
+            )
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error updating filter usage time sensor: {e}")
+            logging.getLogger(__name__).error(
+                f"Error updating filter usage time sensor: {e}"
+            )
             self._attr_native_value = None
-

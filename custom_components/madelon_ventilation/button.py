@@ -13,7 +13,11 @@ from .fresh_air_controller import FreshAirSystem
 import logging
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+):
     """Set up the Fresh Air System buttons."""
     logging.getLogger(__name__).info("Setting up Fresh Air System buttons")
     system = hass.data[DOMAIN][config_entry.entry_id]["system"]
@@ -49,7 +53,9 @@ class FilterResetButton(ButtonEntity):
         """Handle the button press."""
         try:
             # Reset filter usage time
-            result = await self.hass.async_add_executor_job(self._system.reset_filter_usage_time)
+            result = await self.hass.async_add_executor_job(
+                self._system.reset_filter_usage_time
+            )
             if result:
                 logging.getLogger(__name__).info("Filter usage time reset successfully")
                 # Update all sensors to reflect the change
@@ -58,4 +64,6 @@ class FilterResetButton(ButtonEntity):
             else:
                 logging.getLogger(__name__).error("Failed to reset filter usage time")
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error resetting filter usage time: {e}", exc_info=True) 
+            logging.getLogger(__name__).error(
+                f"Error resetting filter usage time: {e}", exc_info=True
+            )
