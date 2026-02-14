@@ -1,5 +1,7 @@
 # Smart Madelon
 
+[![Tests](https://github.com/mimiqdev/smart_madelon/actions/workflows/tests.yml/badge.svg)](https://github.com/mimiqdev/smart_madelon/actions/workflows/tests.yml)
+
 迈迪龙新风接入Home Assistant解决方案
 
 ## Prerequisite
