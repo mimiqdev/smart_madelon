@@ -72,7 +72,8 @@ async def async_setup_entry(
             )
 
     # Use event scheduler for periodic updates
-    async_track_time_interval(hass, async_update, timedelta(seconds=30))
+    unsub = async_track_time_interval(hass, async_update, timedelta(seconds=30))
+    config_entry.async_on_unload(unsub)
 
 
 class FreshAirFan(FanEntity):
