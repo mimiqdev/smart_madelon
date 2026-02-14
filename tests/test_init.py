@@ -38,3 +38,9 @@ async def test_setup_entry(hass):
     assert entry.state == ConfigEntryState.LOADED
     assert DOMAIN in hass.data
     assert entry.entry_id in hass.data[DOMAIN]
+
+    # Unload the entry and verify cleanup
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state == ConfigEntryState.NOT_LOADED
+    assert entry.entry_id not in hass.data[DOMAIN]

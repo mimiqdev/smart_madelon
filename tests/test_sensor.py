@@ -62,3 +62,7 @@ async def test_sensor_entities(hass):
         filter_sensor = hass.states.get("sensor.fresh_air_system_filter_usage_time")
         assert filter_sensor is not None
         assert filter_sensor.state == "100"
+
+        # Unload the entry
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()

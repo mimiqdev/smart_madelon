@@ -71,3 +71,7 @@ async def test_switch_entities(hass):
             blocking=True,
         )
         client.write_register.assert_called_with(address=9, value=0, device_id=1)
+
+        # Unload the entry
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()

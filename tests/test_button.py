@@ -53,3 +53,7 @@ async def test_button_entities(hass):
             blocking=True,
         )
         client.write_register.assert_called_with(address=1, value=1, device_id=1)
+
+        # Unload the entry
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()

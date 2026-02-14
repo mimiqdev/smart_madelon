@@ -79,3 +79,7 @@ async def test_fan_entities(hass):
         # Power on first, then speed high (3)
         client.write_register.assert_any_call(address=0, value=1, device_id=1)
         client.write_register.assert_any_call(address=7, value=3, device_id=1)
+
+        # Unload the entry
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
