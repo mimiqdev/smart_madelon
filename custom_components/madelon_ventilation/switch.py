@@ -1,4 +1,5 @@
 """Switch platform for Madelon Ventilation."""
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -16,29 +17,31 @@ import logging
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+):
     """Set up the Madelon Ventilation switches."""
     system = hass.data[DOMAIN][entry.entry_id]["system"]
-    
+
     # Read all registers
     _LOGGER.debug("Performing initial register read")
     success = await hass.async_add_executor_job(system._read_all_registers, True)
     _LOGGER.debug(f"Initial register read {'successful' if success else 'failed'}")
-    
+
     if success:
         current_mode = system.mode
         _LOGGER.debug(f"Initial mode value: {current_mode}")
-        
+
         # Create switches
         switches = [
             MadelonAutoModeSwitch(entry, system),
             MadelonBypassSwitch(entry, system),
         ]
-        
+
         # Set initial states
         for switch in switches:
             if isinstance(switch, MadelonAutoModeSwitch):
-                switch._is_on = (current_mode == OperationMode.AUTO)
+                switch._is_on = current_mode == OperationMode.AUTO
             elif isinstance(switch, MadelonBypassSwitch):
                 switch._is_on = system.bypass
 
@@ -77,14 +80,14 @@ class MadelonAutoModeSwitch(SwitchEntity):
         try:
             current_mode = self._system.mode
             _LOGGER.debug(f"Auto mode switch got current_mode: {current_mode}")
-            
+
             if current_mode is None:
                 self._is_on = False
                 return
 
             # Auto mode is on when mode is AUTO, off when MANUAL
-            self._is_on = (current_mode == OperationMode.AUTO)
-            
+            self._is_on = current_mode == OperationMode.AUTO
+
             _LOGGER.debug(
                 f"Auto mode switch update complete: "
                 f"current_mode={current_mode.value}, "
@@ -96,11 +99,13 @@ class MadelonAutoModeSwitch(SwitchEntity):
     def turn_on(self, **kwargs):
         """Turn on auto mode."""
         try:
-            register_address = self._system.REGISTERS['mode']
+            register_address = self._system.REGISTERS["mode"]
             register_value = self._system._convert_mode_string(OperationMode.AUTO)
-            
-            if self._system.modbus.write_single_register(register_address, register_value):
-                self._system._update_cache_value('mode', register_value)
+
+            if self._system.modbus.write_single_register(
+                register_address, register_value
+            ):
+                self._system._update_cache_value("mode", register_value)
                 self.update()
                 for sensor in self._system.sensors:
                     sensor.schedule_update_ha_state(True)
@@ -112,11 +117,13 @@ class MadelonAutoModeSwitch(SwitchEntity):
     def turn_off(self, **kwargs):
         """Turn off auto mode (switch to manual mode)."""
         try:
-            register_address = self._system.REGISTERS['mode']
+            register_address = self._system.REGISTERS["mode"]
             register_value = self._system._convert_mode_string(OperationMode.MANUAL)
-            
-            if self._system.modbus.write_single_register(register_address, register_value):
-                self._system._update_cache_value('mode', register_value)
+
+            if self._system.modbus.write_single_register(
+                register_address, register_value
+            ):
+                self._system._update_cache_value("mode", register_value)
                 self.update()
                 for sensor in self._system.sensors:
                     sensor.schedule_update_ha_state(True)
@@ -168,9 +175,9 @@ class MadelonBypassSwitch(SwitchEntity):
         """Turn the bypass on."""
         try:
             # Write bypass state to the system
-            register_address = self._system.REGISTERS['bypass']
+            register_address = self._system.REGISTERS["bypass"]
             if self._system.modbus.write_single_register(register_address, 1):
-                self._system._update_cache_value('bypass', 1)
+                self._system._update_cache_value("bypass", 1)
                 self.update()
                 # Notify other related entities to update their state
                 for sensor in self._system.sensors:
@@ -184,9 +191,9 @@ class MadelonBypassSwitch(SwitchEntity):
         """Turn the bypass off."""
         try:
             # Write bypass state to the system
-            register_address = self._system.REGISTERS['bypass']
+            register_address = self._system.REGISTERS["bypass"]
             if self._system.modbus.write_single_register(register_address, 0):
-                self._system._update_cache_value('bypass', 0)
+                self._system._update_cache_value("bypass", 0)
                 self.update()
                 # Notify other related entities to update their state
                 for sensor in self._system.sensors:

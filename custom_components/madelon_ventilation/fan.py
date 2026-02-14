@@ -5,8 +5,12 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
+
 # Helper function for percentage conversion
-from homeassistant.util.percentage import ordered_list_item_to_percentage, percentage_to_ordered_list_item
+from homeassistant.util.percentage import (
+    ordered_list_item_to_percentage,
+    percentage_to_ordered_list_item,
+)
 from datetime import timedelta
 from .const import (
     DOMAIN,
@@ -20,7 +24,11 @@ import logging
 ORDERED_NAMED_FAN_SPEEDS = ["low", "medium", "high"]  # off is not included
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+):
     """Set up the Fresh Air System fans."""
     logging.getLogger(__name__).info("Setting up Fresh Air System fans")
     system = hass.data[DOMAIN][config_entry.entry_id]["system"]
@@ -48,14 +56,20 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
             # Update sensors
             sensors = hass.data[DOMAIN][config_entry.entry_id].get("sensors", [])
             for sensor in sensors:
-                if sensor.hass and sensor.should_poll:  # Ensure sensor is added and needs polling
+                if (
+                    sensor.hass and sensor.should_poll
+                ):  # Ensure sensor is added and needs polling
                     await hass.async_add_executor_job(sensor.update)
                     if sensor.available:
                         sensor.async_write_ha_state()
-                        logging.getLogger(__name__).debug(f"Sensor {sensor.name} data updated. New native_value: {sensor.native_value}")
+                        logging.getLogger(__name__).debug(
+                            f"Sensor {sensor.name} data updated. New native_value: {sensor.native_value}"
+                        )
 
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error updating fan and sensor states: {e}", exc_info=True)
+            logging.getLogger(__name__).error(
+                f"Error updating fan and sensor states: {e}", exc_info=True
+            )
 
     # Use event scheduler for periodic updates
     async_track_time_interval(hass, async_update, timedelta(seconds=30))
@@ -72,7 +86,9 @@ class FreshAirFan(FanEntity):
         self._attr_name = f"{fan_type.capitalize()} Fan"
         self._attr_is_on = False
         self._attr_percentage = 0
-        self._attr_unique_id = f"{DOMAIN}_{self._fan_type}_fan_{system.unique_identifier}"
+        self._attr_unique_id = (
+            f"{DOMAIN}_{self._fan_type}_fan_{system.unique_identifier}"
+        )
         # Remove preset modes to prevent them from showing in HomeKit
         self._attr_preset_modes = None
         self._attr_preset_mode = None
@@ -92,9 +108,9 @@ class FreshAirFan(FanEntity):
     def supported_features(self):
         """Flag supported features."""
         return (
-            FanEntityFeature.SET_SPEED |
-            FanEntityFeature.TURN_ON |
-            FanEntityFeature.TURN_OFF
+            FanEntityFeature.SET_SPEED
+            | FanEntityFeature.TURN_ON
+            | FanEntityFeature.TURN_OFF
         )
 
     @property
@@ -131,15 +147,26 @@ class FreshAirFan(FanEntity):
                 self._attr_percentage = 0
             else:
                 try:
-                    self._attr_percentage = ordered_list_item_to_percentage(ORDERED_NAMED_FAN_SPEEDS, speed)
+                    self._attr_percentage = ordered_list_item_to_percentage(
+                        ORDERED_NAMED_FAN_SPEEDS, speed
+                    )
                 except ValueError:
-                    logging.getLogger(__name__).warning(f"Invalid {self._fan_type} speed value: {speed}")
+                    logging.getLogger(__name__).warning(
+                        f"Invalid {self._fan_type} speed value: {speed}"
+                    )
                     self._attr_percentage = 0
 
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error in {self._fan_type} fan update: {e}", exc_info=True)
+            logging.getLogger(__name__).error(
+                f"Error in {self._fan_type} fan update: {e}", exc_info=True
+            )
 
-    def turn_on(self, percentage: Optional[int] = None, preset_mode: Optional[str] = None, **kwargs: Any) -> None:
+    def turn_on(
+        self,
+        percentage: Optional[int] = None,
+        preset_mode: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
         """Turn on the fan.
 
         Args:
