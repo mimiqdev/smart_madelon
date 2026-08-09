@@ -87,6 +87,7 @@ class FreshAirFan(FanEntity):
         self._attr_name = f"{fan_type.capitalize()} Fan"
         self._attr_is_on = False
         self._attr_percentage = 0
+        self._attr_speed_count = len(ORDERED_NAMED_FAN_SPEEDS)
         self._attr_unique_id = (
             f"{DOMAIN}_{self._fan_type}_fan_{system.unique_identifier}"
         )

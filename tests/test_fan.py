@@ -6,6 +6,7 @@ from homeassistant.components.fan import (
 )
 from homeassistant.const import ATTR_ENTITY_ID
 from custom_components.madelon_ventilation.const import DOMAIN
+from custom_components.madelon_ventilation.fan import FreshAirFan
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 import pytest
 
@@ -52,12 +53,14 @@ async def test_fan_entities(hass):
         assert (
             supply_fan.attributes["percentage"] == 33
         )  # low in ["low", "medium", "high"]
+        assert supply_fan.attributes["percentage_step"] == pytest.approx(100 / 3)
 
         # Check exhaust fan
         exhaust_fan = hass.states.get("fan.fresh_air_system_exhaust_fan")
         assert exhaust_fan is not None
         assert exhaust_fan.state == "on"
         assert exhaust_fan.attributes["percentage"] == 66  # medium
+        assert exhaust_fan.attributes["percentage_step"] == pytest.approx(100 / 3)
 
         # Test turn off
         client.write_register.return_value = True
@@ -83,3 +86,14 @@ async def test_fan_entities(hass):
         # Unload the entry
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
+
+
+def test_fans_have_three_discrete_speeds():
+    """Test both fan types expose the three-speed FanEntity API."""
+    system = MagicMock(unique_identifier="127.0.0.1:8899")
+
+    for fan_type in ("supply", "exhaust"):
+        fan = FreshAirFan(MagicMock(), system, fan_type)
+
+        assert fan.speed_count == 3
+        assert fan.percentage_step == pytest.approx(100 / 3)
