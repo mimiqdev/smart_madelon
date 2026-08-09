@@ -3,11 +3,11 @@ import threading
 import time
 from enum import Enum
 
-from pymodbus import (
+from pymodbus import (  # pyright: ignore[reportMissingImports]
     ExceptionResponse,
     # pymodbus_apply_logging_config,
 )
-from pymodbus.client import ModbusTcpClient
+from pymodbus.client import ModbusTcpClient  # pyright: ignore[reportMissingImports]
 
 from .const import DEFAULT_PORT, DEFAULT_UNIT_ID
 
