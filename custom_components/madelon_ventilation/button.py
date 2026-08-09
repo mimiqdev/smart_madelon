@@ -1,16 +1,24 @@
-from homeassistant.components.button import ButtonEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+import logging
+
+from homeassistant.components.button import (  # pyright: ignore[reportMissingImports]
+    ButtonEntity,
+)
+from homeassistant.config_entries import ConfigEntry  # pyright: ignore[reportMissingImports]
+from homeassistant.core import HomeAssistant  # pyright: ignore[reportMissingImports]
+from homeassistant.helpers.device_registry import (  # pyright: ignore[reportMissingImports]
+    DeviceInfo,
+)
+from homeassistant.helpers.entity_platform import (  # pyright: ignore[reportMissingImports]
+    AddEntitiesCallback,
+)
+
 from .const import (
-    DOMAIN,
     DEVICE_MANUFACTURER,
     DEVICE_MODEL,
     DEVICE_SW_VERSION,
+    DOMAIN,
 )
 from .fresh_air_controller import FreshAirSystem
-import logging
 
 
 async def async_setup_entry(
@@ -37,6 +45,13 @@ class FilterResetButton(ButtonEntity):
         self._attr_name = "Reset Filter Usage"
         self._attr_unique_id = f"{DOMAIN}_{system.unique_identifier}_filter_reset"
         self._attr_icon = "mdi:filter-remove"
+        # Polling only republishes controller availability; it performs no I/O.
+        self._attr_should_poll = True
+
+    @property
+    def available(self) -> bool:
+        """Return whether the controller can currently be read."""
+        return self._system.available
 
     @property
     def device_info(self) -> DeviceInfo:

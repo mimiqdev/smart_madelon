@@ -168,6 +168,14 @@ class FreshAirSystem:
         self._cache_timestamp = None
         self._cache_ttl = 30  # 缓存有效期（秒）
         self._is_reading = False  # 添加读取锁
+        # Availability represents the latest real register read, not whether a
+        # last-known value happens to remain in the cache.
+        self._available = False
+
+    @property
+    def available(self) -> bool:
+        """Return whether the most recent register read succeeded."""
+        return self._available
 
     def register_sensor(self, sensor):
         """Register a sensor entity with the system."""
@@ -175,7 +183,11 @@ class FreshAirSystem:
 
     def _is_cache_valid(self):
         """检查缓存是否有效"""
-        if self._cache_timestamp is None or self._registers_cache is None:
+        if (
+            not self._available
+            or self._cache_timestamp is None
+            or self._registers_cache is None
+        ):
             return False
         return (time.time() - self._cache_timestamp) < self._cache_ttl
 
@@ -187,7 +199,7 @@ class FreshAirSystem:
         # 防止重复读取
         if self._is_reading:
             self.logger.debug("Already reading registers, skipping duplicate read")
-            return True
+            return self._available
 
         try:
             self._is_reading = True
@@ -197,19 +209,26 @@ class FreshAirSystem:
                 f"Reading all registers from {start_address} to {start_address + count - 1}"
             )
             response = self.modbus.read_registers(start_address, count)
-            if response and hasattr(response, "registers"):
-                self._registers_cache = response.registers
+            registers = getattr(response, "registers", None) if response else None
+            if registers is not None and len(registers) >= count:
+                self._registers_cache = registers
                 self._cache_timestamp = time.time()
+                self._available = True
                 self.logger.debug(f"Registers read: {self._registers_cache}")
 
                 # Update all registered sensors
                 for sensor in self.sensors:
                     sensor.schedule_update_ha_state(True)
                 return True
+
+            self._available = False
+            self.logger.warning("Register read failed or returned incomplete data")
             return False
         except Exception as e:
             self.logger.error(f"Error reading registers: {e}")
-            self._registers_cache = None
+            # Keep the last-known cache for a later successful recovery, but
+            # never let it imply that communication is healthy.
+            self._available = False
             return False
         finally:
             self._is_reading = False
@@ -220,6 +239,12 @@ class FreshAirSystem:
         # _read_all_registers() will only perform a read if the cache is stale or force_refresh is True.
         # We pass force_refresh=False to respect the cache TTL.
         self._read_all_registers(force_refresh=False)
+
+        if not self._available:
+            self.logger.warning(
+                f"Cannot get register value for '{register_name}': device is unavailable."
+            )
+            return None
 
         if self._registers_cache is None:
             self.logger.warning(
@@ -383,7 +408,8 @@ class FreshAirSystem:
     @property
     def bypass(self):
         """获取旁通状态"""
-        return bool(self._get_register_value("bypass"))
+        value = self._get_register_value("bypass")
+        return bool(value) if value is not None else None
 
     @bypass.setter
     def bypass(self, state: bool):

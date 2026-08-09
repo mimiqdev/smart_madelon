@@ -1,18 +1,26 @@
 """Switch platform for Madelon Ventilation."""
 
-from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.device_registry import DeviceInfo
+import logging
+
+from homeassistant.components.switch import (  # pyright: ignore[reportMissingImports]
+    SwitchEntity,
+)
+from homeassistant.config_entries import ConfigEntry  # pyright: ignore[reportMissingImports]
+from homeassistant.core import HomeAssistant  # pyright: ignore[reportMissingImports]
+from homeassistant.helpers.device_registry import (  # pyright: ignore[reportMissingImports]
+    DeviceInfo,
+)
+from homeassistant.helpers.entity_platform import (  # pyright: ignore[reportMissingImports]
+    AddEntitiesCallback,
+)
+
 from .const import (
-    DOMAIN,
     DEVICE_MANUFACTURER,
     DEVICE_MODEL,
     DEVICE_SW_VERSION,
+    DOMAIN,
 )
 from .fresh_air_controller import FreshAirSystem, OperationMode
-import logging
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,6 +68,11 @@ class MadelonAutoModeSwitch(SwitchEntity):
         self._is_on = False
 
     @property
+    def available(self) -> bool:
+        """Return whether the controller can currently be read."""
+        return self._system.available
+
+    @property
     def device_info(self) -> DeviceInfo:
         """Return device information about this entity."""
         return DeviceInfo(
@@ -81,8 +94,7 @@ class MadelonAutoModeSwitch(SwitchEntity):
             current_mode = self._system.mode
             _LOGGER.debug(f"Auto mode switch got current_mode: {current_mode}")
 
-            if current_mode is None:
-                self._is_on = False
+            if not self._system.available or current_mode is None:
                 return
 
             # Auto mode is on when mode is AUTO, off when MANUAL
@@ -145,6 +157,11 @@ class MadelonBypassSwitch(SwitchEntity):
         self._is_on = False
 
     @property
+    def available(self) -> bool:
+        """Return whether the controller can currently be read."""
+        return self._system.available
+
+    @property
     def device_info(self) -> DeviceInfo:
         """Return device information about this entity."""
         return DeviceInfo(
@@ -165,11 +182,12 @@ class MadelonBypassSwitch(SwitchEntity):
         try:
             # Read bypass state from the system
             bypass_state = self._system.bypass
-            self._is_on = bool(bypass_state) if bypass_state is not None else False
+            if not self._system.available or bypass_state is None:
+                return
+            self._is_on = bool(bypass_state)
             _LOGGER.debug(f"Bypass switch state updated: {self._is_on}")
         except Exception as e:
             _LOGGER.error(f"Error updating bypass switch state: {e}")
-            self._is_on = False
 
     def turn_on(self, **kwargs):
         """Turn the bypass on."""

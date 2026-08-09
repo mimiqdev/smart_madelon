@@ -1,25 +1,38 @@
-from typing import Any, Optional
-from homeassistant.components.fan import FanEntity, FanEntityFeature
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_time_interval
+from __future__ import annotations
+
+import logging
+from datetime import timedelta
+from typing import Any
+
+from homeassistant.components.fan import (  # pyright: ignore[reportMissingImports]
+    FanEntity,
+    FanEntityFeature,
+)
+from homeassistant.config_entries import ConfigEntry  # pyright: ignore[reportMissingImports]
+from homeassistant.core import HomeAssistant  # pyright: ignore[reportMissingImports]
+from homeassistant.helpers.device_registry import (  # pyright: ignore[reportMissingImports]
+    DeviceInfo,
+)
+from homeassistant.helpers.entity_platform import (  # pyright: ignore[reportMissingImports]
+    AddEntitiesCallback,
+)
+from homeassistant.helpers.event import (  # pyright: ignore[reportMissingImports]
+    async_track_time_interval,
+)
 
 # Helper function for percentage conversion
-from homeassistant.util.percentage import (
+from homeassistant.util.percentage import (  # pyright: ignore[reportMissingImports]
     ordered_list_item_to_percentage,
     percentage_to_ordered_list_item,
 )
-from datetime import timedelta
+
 from .const import (
-    DOMAIN,
     DEVICE_MANUFACTURER,
     DEVICE_MODEL,
     DEVICE_SW_VERSION,
+    DOMAIN,
 )
 from .fresh_air_controller import FreshAirSystem
-import logging
 
 ORDERED_NAMED_FAN_SPEEDS = ["low", "medium", "high"]  # off is not included
 
@@ -48,9 +61,9 @@ async def async_setup_entry(
             await hass.async_add_executor_job(exhaust_fan.update)
 
             # Update states for fans
-            if supply_fan.hass and supply_fan.available:
+            if supply_fan.hass:
                 supply_fan.async_write_ha_state()
-            if exhaust_fan.hass and exhaust_fan.available:
+            if exhaust_fan.hass:
                 exhaust_fan.async_write_ha_state()
 
             # Update sensors
@@ -60,11 +73,10 @@ async def async_setup_entry(
                     sensor.hass and sensor.should_poll
                 ):  # Ensure sensor is added and needs polling
                     await hass.async_add_executor_job(sensor.update)
-                    if sensor.available:
-                        sensor.async_write_ha_state()
-                        logging.getLogger(__name__).debug(
-                            f"Sensor {sensor.name} data updated. New native_value: {sensor.native_value}"
-                        )
+                    sensor.async_write_ha_state()
+                    logging.getLogger(__name__).debug(
+                        f"Sensor {sensor.name} data updated. New native_value: {sensor.native_value}"
+                    )
 
         except Exception as e:
             logging.getLogger(__name__).error(
@@ -96,6 +108,11 @@ class FreshAirFan(FanEntity):
         self._attr_preset_mode = None
 
     @property
+    def available(self) -> bool:
+        """Return whether the controller can currently be read."""
+        return self._system.available
+
+    @property
     def device_info(self) -> DeviceInfo:
         """Return device information about this entity."""
         return DeviceInfo(
@@ -121,7 +138,7 @@ class FreshAirFan(FanEntity):
         return self._attr_is_on
 
     @property
-    def percentage(self) -> Optional[int]:
+    def percentage(self) -> int | None:
         """Return the current speed percentage."""
         return self._attr_percentage
 
@@ -135,6 +152,8 @@ class FreshAirFan(FanEntity):
         """Update the fan's state."""
         try:
             power = self._system.power
+            if not self._system.available or power is None:
+                return
 
             # Get speed based on fan type
             if self._fan_type == "supply":
@@ -142,10 +161,13 @@ class FreshAirFan(FanEntity):
             else:  # exhaust
                 speed = self._system.exhaust_speed
 
-            self._attr_is_on = power if power is not None else False
+            if not self._system.available or speed is None:
+                return
+
+            self._attr_is_on = power
 
             # Calculate percentage
-            if not self._attr_is_on or speed is None:
+            if not self._attr_is_on:
                 self._attr_percentage = 0
             else:
                 try:
@@ -165,8 +187,8 @@ class FreshAirFan(FanEntity):
 
     def turn_on(
         self,
-        percentage: Optional[int] = None,
-        preset_mode: Optional[str] = None,
+        percentage: int | None = None,
+        preset_mode: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Turn on the fan.

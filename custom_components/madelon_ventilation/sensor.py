@@ -1,18 +1,26 @@
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.device_registry import DeviceInfo
+import logging
+
+from homeassistant.components.sensor import (  # pyright: ignore[reportMissingImports]
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
+from homeassistant.config_entries import ConfigEntry  # pyright: ignore[reportMissingImports]
+from homeassistant.const import (  # pyright: ignore[reportMissingImports]
+    PERCENTAGE,
+    UnitOfTemperature,
+    UnitOfTime,
+)
+from homeassistant.helpers.device_registry import (  # pyright: ignore[reportMissingImports]
+    DeviceInfo,
+)
+
 from .const import (
-    DOMAIN,
     DEVICE_MANUFACTURER,
     DEVICE_MODEL,
     DEVICE_SW_VERSION,
+    DOMAIN,
 )
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorStateClass,
-)
-from homeassistant.const import UnitOfTemperature, PERCENTAGE, UnitOfTime
-import logging
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -50,6 +58,11 @@ class FreshAirTemperatureSensor(SensorEntity):
         self._attr_native_value = None
 
     @property
+    def available(self) -> bool:
+        """Return whether the controller can currently be read."""
+        return self._system.available
+
+    @property
     def device_info(self) -> DeviceInfo:
         """Return device information about this entity."""
         return DeviceInfo(
@@ -63,10 +76,11 @@ class FreshAirTemperatureSensor(SensorEntity):
     def update(self) -> None:
         """Update the sensor."""
         try:
-            self._attr_native_value = self._system.temperature
+            value = self._system.temperature
+            if self._system.available and value is not None:
+                self._attr_native_value = value
         except Exception as e:
             logging.getLogger(__name__).error(f"Error updating temperature sensor: {e}")
-            self._attr_native_value = None
 
 
 class FreshAirHumiditySensor(SensorEntity):
@@ -83,6 +97,11 @@ class FreshAirHumiditySensor(SensorEntity):
         self._attr_native_value = None
 
     @property
+    def available(self) -> bool:
+        """Return whether the controller can currently be read."""
+        return self._system.available
+
+    @property
     def device_info(self) -> DeviceInfo:
         """Return device information about this entity."""
         return DeviceInfo(
@@ -96,10 +115,11 @@ class FreshAirHumiditySensor(SensorEntity):
     def update(self) -> None:
         """Update the sensor."""
         try:
-            self._attr_native_value = self._system.humidity
+            value = self._system.humidity
+            if self._system.available and value is not None:
+                self._attr_native_value = value
         except Exception as e:
             logging.getLogger(__name__).error(f"Error updating humidity sensor: {e}")
-            self._attr_native_value = None
 
 
 class FreshAirFilterUsageSensor(SensorEntity):
@@ -116,6 +136,11 @@ class FreshAirFilterUsageSensor(SensorEntity):
         self._attr_native_value = None
 
     @property
+    def available(self) -> bool:
+        """Return whether the controller can currently be read."""
+        return self._system.available
+
+    @property
     def device_info(self) -> DeviceInfo:
         """Return device information about this entity."""
         return DeviceInfo(
@@ -129,12 +154,13 @@ class FreshAirFilterUsageSensor(SensorEntity):
     def update(self) -> None:
         """Update the sensor."""
         try:
-            self._attr_native_value = self._system.filter_usage_time
-            logging.getLogger(__name__).debug(
-                f"Filter usage time updated: {self._attr_native_value} hours"
-            )
+            value = self._system.filter_usage_time
+            if self._system.available and value is not None:
+                self._attr_native_value = value
+                logging.getLogger(__name__).debug(
+                    f"Filter usage time updated: {self._attr_native_value} hours"
+                )
         except Exception as e:
             logging.getLogger(__name__).error(
                 f"Error updating filter usage time sensor: {e}"
             )
-            self._attr_native_value = None
