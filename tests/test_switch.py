@@ -1,12 +1,18 @@
-from unittest.mock import patch, MagicMock
-from homeassistant.components.switch import (
+from unittest.mock import MagicMock, patch
+
+import pytest
+from homeassistant.components.switch import (  # pyright: ignore[reportMissingImports]
     DOMAIN as SWITCH_DOMAIN,
+)
+from homeassistant.components.switch import (  # pyright: ignore[reportMissingImports]
     SERVICE_TURN_OFF,
 )
-from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.const import ATTR_ENTITY_ID  # pyright: ignore[reportMissingImports]
+from pytest_homeassistant_custom_component.common import (  # pyright: ignore[reportMissingImports]
+    MockConfigEntry,
+)
+
 from custom_components.madelon_ventilation.const import DOMAIN
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-import pytest
 
 
 @pytest.mark.asyncio
@@ -88,15 +94,14 @@ async def test_switch_entities_created_when_initial_read_fails(hass):
     entry.add_to_hass(hass)
 
     with patch(
-        "custom_components.madelon_ventilation.fresh_air_controller.ModbusTcpClient"
-    ) as mock_modbus:
-        client = mock_modbus.return_value
-        client.connect.return_value = False
-        client.connected = False
-
+        "custom_components.madelon_ventilation.fresh_air_controller."
+        "FreshAirSystem._read_all_registers",
+        return_value=False,
+    ) as mock_initial_read:
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
+        mock_initial_read.assert_any_call(True)
         assert hass.states.get("switch.fresh_air_system_auto_mode") is not None
         assert hass.states.get("switch.fresh_air_system_bypass") is not None
 
