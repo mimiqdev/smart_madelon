@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 # pyright: reportMissingImports=false
-
 import logging
 from typing import Any
 
@@ -33,7 +32,9 @@ from homeassistant.util.percentage import (  # pyright: ignore[reportMissingImpo
 )
 
 from .const import DEVICE_MANUFACTURER, DEVICE_MODEL, DEVICE_SW_VERSION, DOMAIN
-from .coordinator import MadelonVentilationCoordinator  # pyright: ignore[reportMissingImports]
+from .coordinator import (
+    MadelonVentilationCoordinator,  # pyright: ignore[reportMissingImports]
+)
 from .fresh_air_controller import FreshAirSystem
 
 _LOGGER = logging.getLogger(__name__)
@@ -129,9 +130,12 @@ class FreshAirFan(CoordinatorEntity[MadelonVentilationCoordinator], FanEntity):
         super()._handle_coordinator_update()
 
     async def _async_refresh_after_write(self, success: bool) -> None:
-        """Refresh all related entities after a successful write."""
-        if success:
-            await self.coordinator.async_request_refresh()
+        """Report the write result and reconcile state after device interaction."""
+        if not success:
+            _LOGGER.warning(
+                "%s fan write did not complete successfully", self._fan_type
+            )
+        await self.coordinator.async_request_refresh()
 
     async def async_turn_on(
         self,
@@ -159,15 +163,22 @@ class FreshAirFan(CoordinatorEntity[MadelonVentilationCoordinator], FanEntity):
 
         speed = percentage_to_ordered_list_item(ORDERED_NAMED_FAN_SPEEDS, percentage)
 
-        def write_power_and_speed() -> bool:
-            power_success = self._system.set_power(True)
+        already_on = self.coordinator.last_update_success and self._attr_is_on
+
+        def write_speed_then_power() -> bool:
+            # Speed and power are non-contiguous registers, so this sequence
+            # cannot be atomic. Never power on if selecting the speed failed.
             if self._fan_type == "supply":
                 speed_success = self._system.set_supply_speed(speed)
             else:
                 speed_success = self._system.set_exhaust_speed(speed)
-            return power_success or speed_success
+            if not speed_success:
+                return False
+            if already_on:
+                return True
+            return self._system.set_power(True)
 
-        success = await self.hass.async_add_executor_job(write_power_and_speed)
+        success = await self.hass.async_add_executor_job(write_speed_then_power)
         await self._async_refresh_after_write(success)
 
     async def async_toggle(self, **kwargs: Any) -> None:

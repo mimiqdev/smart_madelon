@@ -141,9 +141,9 @@ def test_failed_forced_refresh_does_not_revalidate_ttl_cache():
         side_effect=[_response(_registers(temperature=255)), None, None]
     )
 
-    assert system._read_all_registers(force_refresh=True) is True
+    assert system.refresh_registers(force_refresh=True) is True
     assert system.temperature == 25.5
-    assert system._read_all_registers(force_refresh=True) is False
+    assert system.refresh_registers(force_refresh=True) is False
     assert system.available is False
     assert system.temperature is None
     assert system.modbus.read_registers.call_count == 3

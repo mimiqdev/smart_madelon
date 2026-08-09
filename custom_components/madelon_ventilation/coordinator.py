@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 # pyright: reportMissingImports=false
-
 import logging
 from datetime import timedelta
 
-from homeassistant.config_entries import ConfigEntry  # pyright: ignore[reportMissingImports]
+from homeassistant.config_entries import (
+    ConfigEntry,  # pyright: ignore[reportMissingImports]
+)
 from homeassistant.core import HomeAssistant  # pyright: ignore[reportMissingImports]
 from homeassistant.helpers.update_coordinator import (  # pyright: ignore[reportMissingImports]
     DataUpdateCoordinator,
@@ -43,7 +44,7 @@ class MadelonVentilationCoordinator(DataUpdateCoordinator[FreshAirSystem]):
     async def _async_update_data(self) -> FreshAirSystem:
         """Read the complete register snapshot exactly once."""
         success = await self.hass.async_add_executor_job(
-            self.system._read_all_registers, True
+            self.system.refresh_registers, True
         )
         if not success:
             raise UpdateFailed("Unable to read ventilation registers")

@@ -95,7 +95,7 @@ async def test_switch_entities_created_when_initial_read_fails(hass):
 
     with patch(
         "custom_components.madelon_ventilation.fresh_air_controller."
-        "FreshAirSystem._read_all_registers",
+        "FreshAirSystem.refresh_registers",
         return_value=False,
     ) as mock_initial_read:
         assert await hass.config_entries.async_setup(entry.entry_id)

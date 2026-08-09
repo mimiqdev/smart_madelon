@@ -2,8 +2,8 @@
 
 # pyright: reportMissingImports=false
 
-from datetime import timedelta
 import inspect
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,7 +16,11 @@ from custom_components.madelon_ventilation.const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
+from custom_components.madelon_ventilation.coordinator import (
+    MadelonVentilationCoordinator,
+)
 from custom_components.madelon_ventilation.fan import FreshAirFan
+from custom_components.madelon_ventilation.fresh_air_controller import FreshAirSystem
 from custom_components.madelon_ventilation.sensor import FreshAirTemperatureSensor
 from custom_components.madelon_ventilation.switch import MadelonBypassSwitch
 
@@ -43,6 +47,23 @@ def _entry(hass, *, options=None):
     )
     entry.add_to_hass(hass)
     return entry
+
+
+@pytest.mark.asyncio
+async def test_coordinator_uses_public_refresh_contract(hass):
+    """Coordinator refreshes through the controller's public API."""
+    entry = _entry(hass)
+    system = MagicMock(spec=FreshAirSystem)
+    system.refresh_registers.return_value = True
+    coordinator = MadelonVentilationCoordinator(
+        hass, entry, system, timedelta(seconds=DEFAULT_SCAN_INTERVAL)
+    )
+
+    result = await coordinator._async_update_data()
+
+    assert result is system
+    system.refresh_registers.assert_called_once_with(True)
+    assert not hasattr(system, "_read_all_registers")
 
 
 @pytest.mark.asyncio

@@ -11,53 +11,60 @@ from pymodbus.client import ModbusTcpClient  # pyright: ignore[reportMissingImpo
 
 from .const import DEFAULT_PORT, DEFAULT_UNIT_ID
 
-# Enable logging
-logging.basicConfig()
-log = logging.getLogger()
-log.setLevel(logging.WARNING)
+_LOGGER = logging.getLogger(__name__)
 
 
 class ModbusClient:
     MIN_COMMUNICATION_INTERVAL = 0.2
+    CONNECTION_TIMEOUT = 1.0
+    CONNECTION_BUDGET = 2.5
+    RETRY_COUNT = 2
+    RETRY_DELAY = 0.2
 
     def __init__(self, host, port=DEFAULT_PORT, unit_id=DEFAULT_UNIT_ID):
         self.host = host
         self.port = port
         self.unit_id = unit_id
         self.client = None
-        self.logger = logging.getLogger(__name__)
-        self.retry_count = 3
-        self.retry_delay = 1  # seconds
-        self.connection_timeout = 10  # 连接超时时间（秒）
+        self.logger = _LOGGER
+        self.retry_count = self.RETRY_COUNT
+        self.retry_delay = self.RETRY_DELAY
+        self.connection_timeout = self.CONNECTION_TIMEOUT
+        self.connection_budget = self.CONNECTION_BUDGET
         self._communication_lock = threading.Lock()
         self._last_request_time = None
 
     def _ensure_connected(self):
-        """Ensure connection is established with retry mechanism"""
-        start_time = time.time()
+        """Ensure a connection is established within a bounded retry budget."""
+        start_time = time.monotonic()
         for attempt in range(self.retry_count):
-            try:
-                if time.time() - start_time > self.connection_timeout:
-                    self.logger.error("Connection timeout")
-                    return False
+            if time.monotonic() - start_time >= self.connection_budget:
+                self.logger.error("Connection attempt budget exhausted")
+                return False
 
+            try:
                 if self.client is None:
-                    self.client = ModbusTcpClient(host=self.host, port=self.port)
-                if not self.client.connected:
-                    self.client.connect()
-                return True
-            except ConnectionRefusedError as e:
-                self.logger.error(f"Connection refused: {e}")
-            except TimeoutError as e:
-                self.logger.error(f"Connection timeout: {e}")
-            except ConnectionError as e:
-                self.logger.error(f"Connection error: {e}")
-            except Exception as e:
-                self.logger.error(f"Unexpected error: {e}")
+                    self.client = ModbusTcpClient(
+                        host=self.host,
+                        port=self.port,
+                        timeout=self.connection_timeout,
+                    )
+                if self.client.connected:
+                    return True
+
+                connected = self.client.connect()
+                if connected and self.client.connected:
+                    return True
+                self.logger.warning("Modbus connection attempt failed")
+            except (ConnectionRefusedError, TimeoutError, ConnectionError) as error:
+                self.logger.warning("Modbus connection attempt failed: %s", error)
+            except Exception as error:
+                self.logger.error("Unexpected connection error: %s", error)
                 raise
 
-            if attempt < self.retry_count - 1:
-                time.sleep(self.retry_delay)
+            elapsed = time.monotonic() - start_time
+            if attempt < self.retry_count - 1 and elapsed < self.connection_budget:
+                time.sleep(min(self.retry_delay, self.connection_budget - elapsed))
         return False
 
     def _execute_request(self, request):
@@ -79,6 +86,17 @@ class ModbusClient:
             self._last_request_time = now
             return request(client)
 
+    @staticmethod
+    def _is_error_response(response) -> bool:
+        """Return whether pymodbus identifies a response as an error."""
+        if response is None or isinstance(response, ExceptionResponse):
+            return True
+        is_error = getattr(response, "isError", None)
+        if not callable(is_error):
+            return False
+        error_result = is_error()
+        return isinstance(error_result, bool) and error_result
+
     def read_registers(self, start_address, count):
         """Read multiple holding registers."""
         try:
@@ -87,12 +105,12 @@ class ModbusClient:
                     address=start_address, count=count, device_id=self.unit_id
                 )
             )
-            if response is None or isinstance(response, ExceptionResponse):
-                self.logger.error(f"Error reading registers: {response}")
+            if self._is_error_response(response):
+                self.logger.error("Error reading registers: %s", response)
                 return None
             return response
-        except Exception as e:
-            self.logger.error(f"Error reading registers: {e}")
+        except Exception as error:
+            self.logger.error("Error reading registers: %s", error)
             return None
 
     def write_single_register(self, address, value):
@@ -103,18 +121,25 @@ class ModbusClient:
                     address=address, value=value, device_id=self.unit_id
                 )
             )
-            if response is None or isinstance(response, ExceptionResponse):
-                self.logger.error(f"Error writing register: {response}")
+            if self._is_error_response(response):
+                self.logger.error("Error writing register: %s", response)
                 return False
             return True
-        except Exception as e:
-            self.logger.error(f"Error writing register: {e}")
+        except Exception as error:
+            self.logger.error("Error writing register: %s", error)
             return False
 
     def close(self):
-        """显式关闭连接"""
-        if self.client and self.client.connected:
-            self.client.close()
+        """Close the current connection and allow a later reconnect."""
+        with self._communication_lock:
+            client = self.client
+            self.client = None
+            self._last_request_time = None
+            if client is not None:
+                try:
+                    client.close()
+                except Exception as error:
+                    self.logger.warning("Error closing Modbus connection: %s", error)
 
 
 __all__ = ["FreshAirSystem", "OperationMode"]
@@ -162,7 +187,7 @@ class FreshAirSystem:
         self.unique_identifier = (
             f"{host}:{port}"  # Use host and port as a unique identifier
         )
-        self.logger = logging.getLogger(__name__)
+        self.logger = _LOGGER
         self.logger.debug(f"Initialized FreshAirSystem with host: {host}, port: {port}")
         self._coordinator_managed = False
         self._cache_timestamp = None
@@ -191,8 +216,8 @@ class FreshAirSystem:
             return False
         return (time.time() - self._cache_timestamp) < self._cache_ttl
 
-    def _read_all_registers(self, force_refresh=False):
-        """一次性读取所有相关寄存器"""
+    def refresh_registers(self, force_refresh=False):
+        """Refresh the complete register snapshot."""
         if not force_refresh and self._is_cache_valid():
             return True
 
@@ -234,7 +259,7 @@ class FreshAirSystem:
         # Standalone controller users retain the historical lazy-read behavior.
         # Coordinator-managed entities must never start their own Modbus reads.
         if not self._coordinator_managed:
-            self._read_all_registers(force_refresh=False)
+            self.refresh_registers(force_refresh=False)
 
         if not self._available:
             self.logger.warning(

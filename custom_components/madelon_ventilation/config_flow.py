@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 # pyright: reportCallIssue=false, reportGeneralTypeIssues=false, reportMissingImports=false
-
 import logging
 from typing import Any
 
@@ -53,7 +52,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     )
 
     # Attempt to read registers to validate connection
-    success = await hass.async_add_executor_job(system._read_all_registers, True)
+    success = await hass.async_add_executor_job(system.refresh_registers, True)
 
     if not success:
         raise CannotConnect
