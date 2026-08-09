@@ -117,6 +117,7 @@ def test_reset_filter_usage_time_obeys_modbus_interval(mock_modbus_client):
         ),
     ):
         assert system.reset_filter_usage_time() is True
+        assert system._read_all_registers(force_refresh=True) is True
 
     assert clock.sleeps == pytest.approx([0.2])
 

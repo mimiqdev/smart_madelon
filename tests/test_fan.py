@@ -1,14 +1,20 @@
-from unittest.mock import patch, MagicMock
+# pyright: reportMissingImports=false
+
+from unittest.mock import MagicMock, patch
+
+import pytest
 from homeassistant.components.fan import (
     DOMAIN as FAN_DOMAIN,
+)
+from homeassistant.components.fan import (
     SERVICE_SET_PERCENTAGE,
     SERVICE_TURN_OFF,
 )
 from homeassistant.const import ATTR_ENTITY_ID
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
 from custom_components.madelon_ventilation.const import DOMAIN
 from custom_components.madelon_ventilation.fan import FreshAirFan
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-import pytest
 
 
 @pytest.mark.asyncio
@@ -91,9 +97,10 @@ async def test_fan_entities(hass):
 def test_fans_have_three_discrete_speeds():
     """Test both fan types expose the three-speed FanEntity API."""
     system = MagicMock(unique_identifier="127.0.0.1:8899")
+    coordinator = MagicMock(system=system, last_update_success=False)
 
     for fan_type in ("supply", "exhaust"):
-        fan = FreshAirFan(MagicMock(), system, fan_type)
+        fan = FreshAirFan(coordinator, fan_type)
 
         assert fan.speed_count == 3
         assert fan.percentage_step == pytest.approx(100 / 3)

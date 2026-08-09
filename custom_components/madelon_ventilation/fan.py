@@ -1,116 +1,82 @@
+"""Fan platform for Madelon Ventilation."""
+
 from __future__ import annotations
 
+# pyright: reportMissingImports=false
+
 import logging
-from datetime import timedelta
 from typing import Any
 
 from homeassistant.components.fan import (  # pyright: ignore[reportMissingImports]
     FanEntity,
     FanEntityFeature,
 )
-from homeassistant.config_entries import ConfigEntry  # pyright: ignore[reportMissingImports]
-from homeassistant.core import HomeAssistant  # pyright: ignore[reportMissingImports]
+from homeassistant.config_entries import (
+    ConfigEntry,  # pyright: ignore[reportMissingImports]
+)
+from homeassistant.core import (  # pyright: ignore[reportMissingImports]
+    HomeAssistant,
+    callback,
+)
 from homeassistant.helpers.device_registry import (  # pyright: ignore[reportMissingImports]
     DeviceInfo,
 )
 from homeassistant.helpers.entity_platform import (  # pyright: ignore[reportMissingImports]
     AddEntitiesCallback,
 )
-from homeassistant.helpers.event import (  # pyright: ignore[reportMissingImports]
-    async_track_time_interval,
+from homeassistant.helpers.update_coordinator import (  # pyright: ignore[reportMissingImports]
+    CoordinatorEntity,
 )
-
-# Helper function for percentage conversion
 from homeassistant.util.percentage import (  # pyright: ignore[reportMissingImports]
     ordered_list_item_to_percentage,
     percentage_to_ordered_list_item,
 )
 
-from .const import (
-    DEVICE_MANUFACTURER,
-    DEVICE_MODEL,
-    DEVICE_SW_VERSION,
-    DOMAIN,
-)
+from .const import DEVICE_MANUFACTURER, DEVICE_MODEL, DEVICE_SW_VERSION, DOMAIN
+from .coordinator import MadelonVentilationCoordinator  # pyright: ignore[reportMissingImports]
 from .fresh_air_controller import FreshAirSystem
 
-ORDERED_NAMED_FAN_SPEEDS = ["low", "medium", "high"]  # off is not included
+_LOGGER = logging.getLogger(__name__)
+ORDERED_NAMED_FAN_SPEEDS = ["low", "medium", "high"]
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
-):
+) -> None:
     """Set up the Fresh Air System fans."""
-    logging.getLogger(__name__).info("Setting up Fresh Air System fans")
-    system = hass.data[DOMAIN][config_entry.entry_id]["system"]
-
-    # Create both supply and exhaust fan entities using the same class
-    supply_fan = FreshAirFan(config_entry, system, "supply")
-    exhaust_fan = FreshAirFan(config_entry, system, "exhaust")
-    async_add_entities([supply_fan, exhaust_fan])
-
-    # Schedule regular updates
-    async def async_update(now=None):
-        """Update the entities."""
-        logging.getLogger(__name__).debug("Updating fan and sensor states...")
-        try:
-            # Update both fans
-            await hass.async_add_executor_job(supply_fan.update)
-            await hass.async_add_executor_job(exhaust_fan.update)
-
-            # Update states for fans
-            if supply_fan.hass:
-                supply_fan.async_write_ha_state()
-            if exhaust_fan.hass:
-                exhaust_fan.async_write_ha_state()
-
-            # Update sensors
-            sensors = hass.data[DOMAIN][config_entry.entry_id].get("sensors", [])
-            for sensor in sensors:
-                if (
-                    sensor.hass and sensor.should_poll
-                ):  # Ensure sensor is added and needs polling
-                    await hass.async_add_executor_job(sensor.update)
-                    sensor.async_write_ha_state()
-                    logging.getLogger(__name__).debug(
-                        f"Sensor {sensor.name} data updated. New native_value: {sensor.native_value}"
-                    )
-
-        except Exception as e:
-            logging.getLogger(__name__).error(
-                f"Error updating fan and sensor states: {e}", exc_info=True
-            )
-
-    # Use event scheduler for periodic updates
-    unsub = async_track_time_interval(hass, async_update, timedelta(seconds=30))
-    config_entry.async_on_unload(unsub)
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
+    async_add_entities(
+        [
+            FreshAirFan(coordinator, "supply"),
+            FreshAirFan(coordinator, "exhaust"),
+        ]
+    )
 
 
-class FreshAirFan(FanEntity):
+class FreshAirFan(CoordinatorEntity[MadelonVentilationCoordinator], FanEntity):
     """Fresh Air System fan entity."""
 
-    def __init__(self, entry: ConfigEntry, system: FreshAirSystem, fan_type: str):
-        super().__init__()
-        self._system = system
-        self._fan_type = fan_type.lower()  # 'supply' or 'exhaust'
+    def __init__(
+        self, coordinator: MadelonVentilationCoordinator, fan_type: str
+    ) -> None:
+        """Initialize a fan backed by the shared coordinator snapshot."""
+        super().__init__(coordinator)
+        self._system: FreshAirSystem = coordinator.system
+        self._fan_type = fan_type.lower()
         self._attr_has_entity_name = True
         self._attr_name = f"{fan_type.capitalize()} Fan"
         self._attr_is_on = False
         self._attr_percentage = 0
         self._attr_speed_count = len(ORDERED_NAMED_FAN_SPEEDS)
         self._attr_unique_id = (
-            f"{DOMAIN}_{self._fan_type}_fan_{system.unique_identifier}"
+            f"{DOMAIN}_{self._fan_type}_fan_{self._system.unique_identifier}"
         )
-        # Remove preset modes to prevent them from showing in HomeKit
         self._attr_preset_modes = None
         self._attr_preset_mode = None
-
-    @property
-    def available(self) -> bool:
-        """Return whether the controller can currently be read."""
-        return self._system.available
+        if coordinator.last_update_success:
+            self._update_from_snapshot()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -124,7 +90,7 @@ class FreshAirFan(FanEntity):
         )
 
     @property
-    def supported_features(self):
+    def supported_features(self) -> FanEntityFeature:
         """Flag supported features."""
         return (
             FanEntityFeature.SET_SPEED
@@ -132,120 +98,81 @@ class FreshAirFan(FanEntity):
             | FanEntityFeature.TURN_OFF
         )
 
-    @property
-    def is_on(self):
-        """Return true if the fan is on."""
-        return self._attr_is_on
+    def _update_from_snapshot(self) -> None:
+        """Copy state from the latest successful shared snapshot."""
+        power = self._system.power
+        speed = (
+            self._system.supply_speed
+            if self._fan_type == "supply"
+            else self._system.exhaust_speed
+        )
+        if power is None or speed is None:
+            return
 
-    @property
-    def percentage(self) -> int | None:
-        """Return the current speed percentage."""
-        return self._attr_percentage
-
-    async def async_added_to_hass(self) -> None:
-        """Run when entity about to be added to hass."""
-        await super().async_added_to_hass()
-        # Initial update
-        await self.hass.async_add_executor_job(self.update)
-
-    def update(self):
-        """Update the fan's state."""
+        self._attr_is_on = power
+        if not power:
+            self._attr_percentage = 0
+            return
         try:
-            power = self._system.power
-            if not self._system.available or power is None:
-                return
-
-            # Get speed based on fan type
-            if self._fan_type == "supply":
-                speed = self._system.supply_speed
-            else:  # exhaust
-                speed = self._system.exhaust_speed
-
-            if not self._system.available or speed is None:
-                return
-
-            self._attr_is_on = power
-
-            # Calculate percentage
-            if not self._attr_is_on:
-                self._attr_percentage = 0
-            else:
-                try:
-                    self._attr_percentage = ordered_list_item_to_percentage(
-                        ORDERED_NAMED_FAN_SPEEDS, speed
-                    )
-                except ValueError:
-                    logging.getLogger(__name__).warning(
-                        f"Invalid {self._fan_type} speed value: {speed}"
-                    )
-                    self._attr_percentage = 0
-
-        except Exception as e:
-            logging.getLogger(__name__).error(
-                f"Error in {self._fan_type} fan update: {e}", exc_info=True
+            self._attr_percentage = ordered_list_item_to_percentage(
+                ORDERED_NAMED_FAN_SPEEDS, speed
             )
+        except ValueError:
+            _LOGGER.warning("Invalid %s speed value: %s", self._fan_type, speed)
+            self._attr_percentage = 0
 
-    def turn_on(
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle a shared register snapshot update."""
+        if self.coordinator.last_update_success:
+            self._update_from_snapshot()
+        super()._handle_coordinator_update()
+
+    async def _async_refresh_after_write(self, success: bool) -> None:
+        """Refresh all related entities after a successful write."""
+        if success:
+            await self.coordinator.async_request_refresh()
+
+    async def async_turn_on(
         self,
         percentage: int | None = None,
         preset_mode: str | None = None,
         **kwargs: Any,
     ) -> None:
-        """Turn on the fan.
-
-        Args:
-            percentage: Optional speed percentage to set (0-100). If provided,
-                       the fan will turn on at this speed.
-            preset_mode: Optional preset mode to set. Not currently implemented.
-            **kwargs: Additional arguments that might be supported in the future.
-
-        Returns:
-            None
-
-        Note:
-            If no percentage is provided, the fan will turn on at its last known speed.
-        """
+        """Turn on the fan."""
         if percentage is not None:
-            self.set_percentage(percentage)
-        else:
-            self._system.power = True
-        self.update()
+            await self.async_set_percentage(percentage)
+            return
+        success = await self.hass.async_add_executor_job(self._system.set_power, True)
+        await self._async_refresh_after_write(success)
 
-    def turn_off(self, **kwargs: Any) -> None:
-        """Turn the fan off.
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the fan off."""
+        success = await self.hass.async_add_executor_job(self._system.set_power, False)
+        await self._async_refresh_after_write(success)
 
-        Args:
-            **kwargs: Additional arguments that might be supported in the future.
-
-        Returns:
-            None
-
-        Note:
-            This will completely stop the fan and set its state to off.
-        """
-        self._system.power = False
-        self.update()
-
-    def set_percentage(self, percentage: int):
+    async def async_set_percentage(self, percentage: int) -> None:
         """Set the speed percentage of the fan."""
         if percentage == 0:
-            self.turn_off()
+            await self.async_turn_off()
             return
 
-        self._system.power = True
         speed = percentage_to_ordered_list_item(ORDERED_NAMED_FAN_SPEEDS, percentage)
 
-        # Set speed based on fan type
-        if self._fan_type == "supply":
-            self._system.supply_speed = speed
-        else:  # exhaust
-            self._system.exhaust_speed = speed
+        def write_power_and_speed() -> bool:
+            power_success = self._system.set_power(True)
+            if self._fan_type == "supply":
+                speed_success = self._system.set_supply_speed(speed)
+            else:
+                speed_success = self._system.set_exhaust_speed(speed)
+            return power_success or speed_success
 
-        self.update()
+        success = await self.hass.async_add_executor_job(write_power_and_speed)
+        await self._async_refresh_after_write(success)
 
-    def toggle(self, **kwargs: Any) -> None:
+    async def async_toggle(self, **kwargs: Any) -> None:
         """Toggle the fan."""
         if self._attr_is_on:
-            self.turn_off(**kwargs)
+            await self.async_turn_off(**kwargs)
         else:
-            self.turn_on(**kwargs)
+            await self.async_turn_on(**kwargs)

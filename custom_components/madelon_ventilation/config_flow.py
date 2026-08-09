@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+# pyright: reportCallIssue=false, reportGeneralTypeIssues=false, reportMissingImports=false
+
 import logging
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -15,21 +16,21 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import (
     CONF_HOST,
-    CONF_SCAN_INTERVAL,
     CONF_PORT,
+    CONF_SCAN_INTERVAL,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 
-from .fresh_air_controller import FreshAirSystem
 from .const import (
+    CONF_UNIT_ID,
+    DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_UNIT_ID,
     DOMAIN,
     MIN_SCAN_INTERVAL,
-    DEFAULT_PORT,
-    DEFAULT_UNIT_ID,
-    CONF_UNIT_ID,
 )
+from .fresh_air_controller import FreshAirSystem
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,6 +61,8 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     return {"title": f"Fresh Air System - {data[CONF_HOST]}"}
 
 
+# pi-lens-ignore: Pyright:reportCallIssue
+# pi-lens-ignore: Pyright:reportGeneralTypeIssues
 class MadelonVentilationConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Madelon Ventilation."""
 
@@ -81,6 +84,7 @@ class MadelonVentilationConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 info = await validate_input(self.hass, user_input)
+            # pi-lens-ignore: unreachable-except
             except CannotConnect:
                 errors["base"] = "cannot_connect"
             except Exception:  # pylint: disable=broad-except

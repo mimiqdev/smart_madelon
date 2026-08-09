@@ -164,7 +164,7 @@ class FreshAirSystem:
         )
         self.logger = logging.getLogger(__name__)
         self.logger.debug(f"Initialized FreshAirSystem with host: {host}, port: {port}")
-        self.sensors = []  # List to hold sensor entities
+        self._coordinator_managed = False
         self._cache_timestamp = None
         self._cache_ttl = 30  # 缓存有效期（秒）
         self._is_reading = False  # 添加读取锁
@@ -177,9 +177,9 @@ class FreshAirSystem:
         """Return whether the most recent register read succeeded."""
         return self._available
 
-    def register_sensor(self, sensor):
-        """Register a sensor entity with the system."""
-        self.sensors.append(sensor)
+    def enable_coordinator_mode(self):
+        """Make register properties consume only coordinator-managed snapshots."""
+        self._coordinator_managed = True
 
     def _is_cache_valid(self):
         """检查缓存是否有效"""
@@ -215,10 +215,6 @@ class FreshAirSystem:
                 self._cache_timestamp = time.time()
                 self._available = True
                 self.logger.debug(f"Registers read: {self._registers_cache}")
-
-                # Update all registered sensors
-                for sensor in self.sensors:
-                    sensor.schedule_update_ha_state(True)
                 return True
 
             self._available = False
@@ -235,10 +231,10 @@ class FreshAirSystem:
 
     def _get_register_value(self, register_name):
         """获取寄存器值"""
-        # Attempt to read/refresh registers if cache is invalid.
-        # _read_all_registers() will only perform a read if the cache is stale or force_refresh is True.
-        # We pass force_refresh=False to respect the cache TTL.
-        self._read_all_registers(force_refresh=False)
+        # Standalone controller users retain the historical lazy-read behavior.
+        # Coordinator-managed entities must never start their own Modbus reads.
+        if not self._coordinator_managed:
+            self._read_all_registers(force_refresh=False)
 
         if not self._available:
             self.logger.warning(
@@ -318,10 +314,16 @@ class FreshAirSystem:
     @power.setter
     def power(self, state: bool):
         """设置电源状态"""
+        self.set_power(state)
+
+    def set_power(self, state: bool) -> bool:
+        """Set power and report whether the write succeeded."""
         self.logger.debug(f"Setting power to: {state}")
-        result = self.modbus.write_single_register(self.REGISTERS["power"], int(state))
+        value = 1 if state else 0
+        result = self.modbus.write_single_register(self.REGISTERS["power"], value)
         if result:
-            self._update_cache_value("power", int(state))
+            self._update_cache_value("power", value)
+        return result
 
     @property
     def mode(self):
@@ -345,11 +347,16 @@ class FreshAirSystem:
     @mode.setter
     def mode(self, mode: OperationMode):
         """设置运行模式"""
+        self.set_mode(mode)
+
+    def set_mode(self, mode: OperationMode) -> bool:
+        """Set operation mode and report whether the write succeeded."""
         value = self._convert_mode_string(mode)
         self.logger.debug(f"Setting mode to: {mode.value} (register value: {value})")
         result = self.modbus.write_single_register(self.REGISTERS["mode"], value)
         if result:
             self._update_cache_value("mode", value)
+        return result
 
     def _convert_mode_value(self, value: int) -> OperationMode:
         """Convert mode register value to OperationMode."""
@@ -379,6 +386,10 @@ class FreshAirSystem:
     @supply_speed.setter
     def supply_speed(self, speed):
         """Set supply speed using either string or integer value."""
+        self.set_supply_speed(speed)
+
+    def set_supply_speed(self, speed) -> bool:
+        """Set supply speed and report whether the write succeeded."""
         validated_speed = self._validate_speed(speed)
         self.logger.debug(f"Setting supply speed to: {validated_speed}")
         result = self.modbus.write_single_register(
@@ -386,6 +397,7 @@ class FreshAirSystem:
         )
         if result:
             self._update_cache_value("supply_speed", validated_speed)
+        return result
 
     @property
     def exhaust_speed(self):
@@ -397,6 +409,10 @@ class FreshAirSystem:
     @exhaust_speed.setter
     def exhaust_speed(self, speed):
         """Set exhaust speed using either string or integer value."""
+        self.set_exhaust_speed(speed)
+
+    def set_exhaust_speed(self, speed) -> bool:
+        """Set exhaust speed and report whether the write succeeded."""
         validated_speed = self._validate_speed(speed)
         self.logger.debug(f"Setting exhaust speed to: {validated_speed}")
         result = self.modbus.write_single_register(
@@ -404,6 +420,7 @@ class FreshAirSystem:
         )
         if result:
             self._update_cache_value("exhaust_speed", validated_speed)
+        return result
 
     @property
     def bypass(self):
@@ -414,10 +431,16 @@ class FreshAirSystem:
     @bypass.setter
     def bypass(self, state: bool):
         """设置旁通状态"""
+        self.set_bypass(state)
+
+    def set_bypass(self, state: bool) -> bool:
+        """Set bypass and report whether the write succeeded."""
         self.logger.debug(f"Setting bypass to: {state}")
-        result = self.modbus.write_single_register(self.REGISTERS["bypass"], int(state))
+        value = 1 if state else 0
+        result = self.modbus.write_single_register(self.REGISTERS["bypass"], value)
         if result:
-            self._update_cache_value("bypass", int(state))
+            self._update_cache_value("bypass", value)
+        return result
 
     @property
     def actual_supply_speed(self):
@@ -480,10 +503,8 @@ class FreshAirSystem:
             self.REGISTERS["filter_usage_time"], 1
         )
         if result:
-            # 重置后，使用时间应该变为0
+            # The coordinator refreshes the complete snapshot after this write.
             self._update_cache_value("filter_usage_time", 0)
-            # 强制刷新缓存以获取最新状态
-            self._read_all_registers(force_refresh=True)
         return result
 
 

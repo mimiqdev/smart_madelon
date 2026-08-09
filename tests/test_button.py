@@ -1,12 +1,16 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 from homeassistant.components.button import (
     DOMAIN as BUTTON_DOMAIN,
+)
+from homeassistant.components.button import (
     SERVICE_PRESS,
 )
 from homeassistant.const import ATTR_ENTITY_ID
-from custom_components.madelon_ventilation.const import DOMAIN
 from pytest_homeassistant_custom_component.common import MockConfigEntry
-import pytest
+
+from custom_components.madelon_ventilation.const import DOMAIN
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,9 @@
-from unittest.mock import patch, MagicMock
-from homeassistant import config_entries, data_entry_flow
-from custom_components.madelon_ventilation.const import DOMAIN
+from unittest.mock import MagicMock, patch
+
 import pytest
+from homeassistant import config_entries, data_entry_flow
+
+from custom_components.madelon_ventilation.const import DOMAIN
 
 
 @pytest.mark.asyncio

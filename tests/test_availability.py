@@ -1,21 +1,16 @@
-"""Regression tests for controller-backed entity availability."""
+"""Regression tests for coordinator-backed entity availability."""
+
+# pyright: reportMissingImports=false
 
 from unittest.mock import MagicMock, patch
 
 import pytest
-from homeassistant.helpers.entity_component import (  # pyright: ignore[reportMissingImports]
-    async_update_entity,
-)
 from pytest_homeassistant_custom_component.common import (  # pyright: ignore[reportMissingImports]
     MockConfigEntry,
 )
 
-from custom_components.madelon_ventilation.button import FilterResetButton
 from custom_components.madelon_ventilation.const import DOMAIN
-from custom_components.madelon_ventilation.fan import FreshAirFan
 from custom_components.madelon_ventilation.fresh_air_controller import FreshAirSystem
-from custom_components.madelon_ventilation.sensor import FreshAirTemperatureSensor
-from custom_components.madelon_ventilation.switch import MadelonBypassSwitch
 
 ENTITY_IDS = (
     "fan.fresh_air_system_supply_fan",
@@ -72,6 +67,7 @@ async def test_initial_setup_offline_creates_unavailable_entities(hass):
 
         system = hass.data[DOMAIN][entry.entry_id]["system"]
         assert system.available is False
+        assert client.read_holding_registers.call_count == 1
         for entity_id in ENTITY_IDS:
             state = hass.states.get(entity_id)
             assert state is not None
@@ -82,8 +78,8 @@ async def test_initial_setup_offline_creates_unavailable_entities(hass):
 
 
 @pytest.mark.asyncio
-async def test_entities_fail_and_recover_with_fresh_register_state(hass):
-    """Failed reads hide stale state until a later real read succeeds."""
+async def test_coordinator_failure_and_recovery_use_one_read_per_cycle(hass):
+    """A failed shared refresh hides stale state and a later refresh recovers it."""
     entry = _entry(hass)
 
     with (
@@ -103,38 +99,32 @@ async def test_entities_fail_and_recover_with_fresh_register_state(hass):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-        system = hass.data[DOMAIN][entry.entry_id]["system"]
-        assert system.available is True
+        entry_data = hass.data[DOMAIN][entry.entry_id]
+        coordinator = entry_data["coordinator"]
+        system = entry_data["system"]
+        assert client.read_holding_registers.call_count == 1
         assert hass.states.get(ENTITY_IDS[0]).state == "on"
         assert hass.states.get(ENTITY_IDS[1]).state == "on"
 
         last_known_cache = system._registers_cache
         client.read_holding_registers.return_value = None
-        assert (
-            await hass.async_add_executor_job(system._read_all_registers, True) is False
-        )
-        assert system.available is False
-        assert system._registers_cache is last_known_cache
-
-        for entity_id in ENTITY_IDS:
-            await async_update_entity(hass, entity_id)
+        await coordinator.async_refresh()
         await hass.async_block_till_done()
 
+        assert client.read_holding_registers.call_count == 2
+        assert system._registers_cache is last_known_cache
+        assert coordinator.last_update_success is False
         for entity_id in ENTITY_IDS:
             assert hass.states.get(entity_id).state == "unavailable"
 
         client.read_holding_registers.return_value = _response(
             _registers(power=0, supply_speed=3, bypass=0, temperature=199)
         )
-        assert (
-            await hass.async_add_executor_job(system._read_all_registers, True) is True
-        )
-
-        for entity_id in ENTITY_IDS:
-            await async_update_entity(hass, entity_id)
+        await coordinator.async_refresh()
         await hass.async_block_till_done()
 
-        assert system.available is True
+        assert client.read_holding_registers.call_count == 3
+        assert coordinator.last_update_success is True
         assert hass.states.get(ENTITY_IDS[0]).state == "off"
         assert hass.states.get(ENTITY_IDS[1]).state == "off"
         assert hass.states.get(ENTITY_IDS[2]).state == "19.9"
@@ -162,39 +152,3 @@ def test_failed_forced_refresh_does_not_revalidate_ttl_cache():
     system.modbus.read_registers.side_effect = None
     assert system.temperature == 20.1
     assert system.available is True
-
-
-def test_entity_updates_preserve_last_known_state_while_unavailable():
-    """Communication failures do not overwrite entity last-known values."""
-    system = MagicMock(unique_identifier="127.0.0.1:8899", available=True)
-    system.power = True
-    system.supply_speed = "medium"
-    system.bypass = True
-    system.temperature = 25.5
-
-    fan = FreshAirFan(MagicMock(), system, "supply")
-    bypass = MadelonBypassSwitch(MagicMock(), system)
-    temperature = FreshAirTemperatureSensor(MagicMock(), system)
-    button = FilterResetButton(MagicMock(), system)
-    fan.update()
-    bypass.update()
-    temperature.update()
-
-    system.available = False
-    system.power = None
-    system.supply_speed = None
-    system.bypass = None
-    system.temperature = None
-    fan.update()
-    bypass.update()
-    temperature.update()
-
-    assert fan.is_on is True
-    assert fan.percentage == 66
-    assert bypass.is_on is True
-    assert temperature.native_value == 25.5
-    assert fan.available is False
-    assert bypass.available is False
-    assert temperature.available is False
-    assert button.available is False
-    assert button.should_poll is True
