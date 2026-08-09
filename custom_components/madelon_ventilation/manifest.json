@@ -1,9 +1,9 @@
 {
   "domain": "madelon_ventilation",
   "name": "Madelon Ventilation",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "documentation": "https://github.com/mimiqdev/smart_madelon#readme",
-  "issue_tracker": "https://github.com/mimiqdev/smark_madelon/issues",
+  "issue_tracker": "https://github.com/mimiqdev/smart_madelon/issues",
   "requirements": [
     "pymodbus>=3.10.0"
   ],
