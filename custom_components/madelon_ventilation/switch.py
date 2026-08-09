@@ -4,6 +4,7 @@ from __future__ import annotations
 
 # pyright: reportMissingImports=false
 
+from collections.abc import Callable
 import logging
 from typing import Any
 
@@ -60,6 +61,7 @@ class MadelonSwitchEntity(
         self._system: FreshAirSystem = coordinator.system
         self._attr_has_entity_name = True
         self._attr_is_on = False
+        self._optimistic_write_pending = False
         if coordinator.last_update_success:
             self._update_from_snapshot()
 
@@ -81,13 +83,34 @@ class MadelonSwitchEntity(
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle a shared register snapshot update."""
-        if self.coordinator.last_update_success:
+        if self.coordinator.last_update_success and not self._optimistic_write_pending:
             self._update_from_snapshot()
         super()._handle_coordinator_update()
 
-    async def _async_refresh_after_write(self, success: bool) -> None:
+    async def _async_write_state(
+        self,
+        target_state: bool,
+        write: Callable[[], bool],
+        failure_message: str,
+    ) -> None:
+        """Publish a requested state immediately and roll back failed writes."""
+        previous_state = bool(self._attr_is_on)
+        self._optimistic_write_pending = True
+        self._attr_is_on = target_state
+        self.async_write_ha_state()
+
+        success = await self.hass.async_add_executor_job(write)
+        self._optimistic_write_pending = False
         if success:
-            await self.coordinator.async_request_refresh()
+            # The controller cache contains the acknowledged write. Publish it
+            # without forcing a read that may still expose the old hardware state.
+            self.coordinator.async_set_updated_data(self._system)
+            return
+
+        _LOGGER.error(failure_message)
+        self._attr_is_on = previous_state
+        self.async_write_ha_state()
+        await self.coordinator.async_request_refresh()
 
 
 class MadelonAutoModeSwitch(MadelonSwitchEntity):
@@ -108,21 +131,19 @@ class MadelonAutoModeSwitch(MadelonSwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on auto mode."""
-        success = await self.hass.async_add_executor_job(
-            self._system.set_mode, OperationMode.AUTO
+        await self._async_write_state(
+            True,
+            lambda: self._system.set_mode(OperationMode.AUTO),
+            "Failed to set auto mode",
         )
-        if not success:
-            _LOGGER.error("Failed to set auto mode")
-        await self._async_refresh_after_write(success)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off auto mode (switch to manual mode)."""
-        success = await self.hass.async_add_executor_job(
-            self._system.set_mode, OperationMode.MANUAL
+        await self._async_write_state(
+            False,
+            lambda: self._system.set_mode(OperationMode.MANUAL),
+            "Failed to set manual mode",
         )
-        if not success:
-            _LOGGER.error("Failed to set manual mode")
-        await self._async_refresh_after_write(success)
 
 
 class MadelonBypassSwitch(MadelonSwitchEntity):
@@ -141,14 +162,16 @@ class MadelonBypassSwitch(MadelonSwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the bypass on."""
-        success = await self.hass.async_add_executor_job(self._system.set_bypass, True)
-        if not success:
-            _LOGGER.error("Failed to turn on bypass")
-        await self._async_refresh_after_write(success)
+        await self._async_write_state(
+            True,
+            lambda: self._system.set_bypass(True),
+            "Failed to turn on bypass",
+        )
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the bypass off."""
-        success = await self.hass.async_add_executor_job(self._system.set_bypass, False)
-        if not success:
-            _LOGGER.error("Failed to turn off bypass")
-        await self._async_refresh_after_write(success)
+        await self._async_write_state(
+            False,
+            lambda: self._system.set_bypass(False),
+            "Failed to turn off bypass",
+        )

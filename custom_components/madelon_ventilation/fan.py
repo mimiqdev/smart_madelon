@@ -76,6 +76,7 @@ class FreshAirFan(CoordinatorEntity[MadelonVentilationCoordinator], FanEntity):
         )
         self._attr_preset_modes = None
         self._attr_preset_mode = None
+        self._optimistic_write_pending = False
         if coordinator.last_update_success:
             self._update_from_snapshot()
 
@@ -125,16 +126,32 @@ class FreshAirFan(CoordinatorEntity[MadelonVentilationCoordinator], FanEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle a shared register snapshot update."""
-        if self.coordinator.last_update_success:
+        if self.coordinator.last_update_success and not self._optimistic_write_pending:
             self._update_from_snapshot()
         super()._handle_coordinator_update()
 
-    async def _async_refresh_after_write(self, success: bool) -> None:
-        """Report the write result and reconcile state after device interaction."""
-        if not success:
-            _LOGGER.warning(
-                "%s fan write did not complete successfully", self._fan_type
-            )
+    @callback
+    def _async_publish_optimistic_state(self, is_on: bool, percentage: int) -> None:
+        """Publish the requested state before waiting for Modbus I/O."""
+        self._optimistic_write_pending = True
+        self._attr_is_on = is_on
+        self._attr_percentage = percentage
+        self.async_write_ha_state()
+
+    async def _async_finish_write(
+        self, success: bool, previous_state: tuple[bool, int]
+    ) -> None:
+        """Keep a successful optimistic state or roll it back on failure."""
+        self._optimistic_write_pending = False
+        if success:
+            # Controller setters have already updated the shared cache. Notify
+            # every entity without forcing an immediate, potentially stale read.
+            self.coordinator.async_set_updated_data(self._system)
+            return
+
+        _LOGGER.warning("%s fan write did not complete successfully", self._fan_type)
+        self._attr_is_on, self._attr_percentage = previous_state
+        self.async_write_ha_state()
         await self.coordinator.async_request_refresh()
 
     async def async_turn_on(
@@ -147,13 +164,18 @@ class FreshAirFan(CoordinatorEntity[MadelonVentilationCoordinator], FanEntity):
         if percentage is not None:
             await self.async_set_percentage(percentage)
             return
+
+        previous_state = (bool(self._attr_is_on), self._attr_percentage or 0)
+        self._async_publish_optimistic_state(True, previous_state[1])
         success = await self.hass.async_add_executor_job(self._system.set_power, True)
-        await self._async_refresh_after_write(success)
+        await self._async_finish_write(success, previous_state)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the fan off."""
+        previous_state = (bool(self._attr_is_on), self._attr_percentage or 0)
+        self._async_publish_optimistic_state(False, 0)
         success = await self.hass.async_add_executor_job(self._system.set_power, False)
-        await self._async_refresh_after_write(success)
+        await self._async_finish_write(success, previous_state)
 
     async def async_set_percentage(self, percentage: int) -> None:
         """Set the speed percentage of the fan."""
@@ -162,8 +184,12 @@ class FreshAirFan(CoordinatorEntity[MadelonVentilationCoordinator], FanEntity):
             return
 
         speed = percentage_to_ordered_list_item(ORDERED_NAMED_FAN_SPEEDS, percentage)
-
+        optimistic_percentage = ordered_list_item_to_percentage(
+            ORDERED_NAMED_FAN_SPEEDS, speed
+        )
+        previous_state = (bool(self._attr_is_on), self._attr_percentage or 0)
         already_on = self.coordinator.last_update_success and self._attr_is_on
+        self._async_publish_optimistic_state(True, optimistic_percentage)
 
         def write_speed_then_power() -> bool:
             # Speed and power are non-contiguous registers, so this sequence
@@ -179,7 +205,7 @@ class FreshAirFan(CoordinatorEntity[MadelonVentilationCoordinator], FanEntity):
             return self._system.set_power(True)
 
         success = await self.hass.async_add_executor_job(write_speed_then_power)
-        await self._async_refresh_after_write(success)
+        await self._async_finish_write(success, previous_state)
 
     async def async_toggle(self, **kwargs: Any) -> None:
         """Toggle the fan."""

@@ -77,6 +77,7 @@ async def test_fan_entities(hass):
             blocking=True,
         )
         client.write_register.assert_called_with(address=0, value=0, device_id=1)
+        assert hass.states.get("fan.fresh_air_system_supply_fan").state == "off"
         client.write_register.reset_mock()
 
         # The cached read was updated to off, so speed must precede power-on.
@@ -90,6 +91,9 @@ async def test_fan_entities(hass):
             call(address=7, value=3, device_id=1),
             call(address=0, value=1, device_id=1),
         ]
+        supply_fan = hass.states.get("fan.fresh_air_system_supply_fan")
+        assert supply_fan.state == "on"
+        assert supply_fan.attributes["percentage"] == 100
 
         # Unload the entry
         assert await hass.config_entries.async_unload(entry.entry_id)
@@ -102,6 +106,7 @@ def _fan_for_write_test(hass, *, is_on: bool):
     coordinator.async_request_refresh = AsyncMock()
     fan = FreshAirFan(coordinator, "supply")
     fan.hass = hass
+    fan.async_write_ha_state = MagicMock()
     coordinator.last_update_success = True
     fan._attr_is_on = is_on
     return fan, system, coordinator
@@ -119,8 +124,12 @@ async def test_percentage_writes_speed_before_power(hass):
 
     await fan.async_set_percentage(100)
 
-    assert writes == [("speed", "high"), ("power", True)]
-    coordinator.async_request_refresh.assert_awaited_once_with()
+    assert [name for name, _ in writes] == ["speed", "power"]
+    assert [value for _, value in writes] == ["high", True]
+    assert fan.is_on
+    assert fan.percentage == 100
+    coordinator.async_set_updated_data.assert_called_once_with(system)
+    coordinator.async_request_refresh.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -133,6 +142,10 @@ async def test_percentage_speed_failure_skips_power_and_refreshes(hass):
 
     system.set_supply_speed.assert_called_once_with("medium")
     system.set_power.assert_not_called()
+    assert not fan.is_on
+    assert fan.percentage == 0
+    assert fan.async_write_ha_state.call_count == 2
+    coordinator.async_set_updated_data.assert_not_called()
     coordinator.async_request_refresh.assert_awaited_once_with()
 
 
@@ -146,7 +159,10 @@ async def test_percentage_change_while_known_on_skips_power_write(hass):
 
     system.set_supply_speed.assert_called_once_with("low")
     system.set_power.assert_not_called()
-    coordinator.async_request_refresh.assert_awaited_once_with()
+    assert fan.is_on
+    assert fan.percentage == 33
+    coordinator.async_set_updated_data.assert_called_once_with(system)
+    coordinator.async_request_refresh.assert_not_awaited()
 
 
 def test_fans_have_three_discrete_speeds():

@@ -179,8 +179,8 @@ async def test_options_change_reloads_coordinator_interval(hass):
 
 
 @pytest.mark.asyncio
-async def test_successful_write_refreshes_related_state(hass):
-    """A successful write requests one refresh and synchronizes related entities."""
+async def test_successful_write_publishes_cache_before_hardware_reconciliation(hass):
+    """A successful write stays optimistic until the next coordinator read."""
     entry = _entry(hass)
 
     with (
@@ -215,6 +215,14 @@ async def test_successful_write_refreshes_related_state(hass):
         await hass.async_block_till_done()
 
         client.write_register.assert_called_once_with(address=9, value=0, device_id=1)
+        assert client.read_holding_registers.call_count == 1
+        assert hass.states.get("switch.fresh_air_system_bypass").state == "off"
+        assert hass.states.get("sensor.fresh_air_system_temperature").state == "25.5"
+
+        coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+        await coordinator.async_request_refresh()
+        await hass.async_block_till_done()
+
         assert client.read_holding_registers.call_count == 2
         assert hass.states.get("switch.fresh_air_system_bypass").state == "off"
         assert hass.states.get("sensor.fresh_air_system_temperature").state == "20.1"
