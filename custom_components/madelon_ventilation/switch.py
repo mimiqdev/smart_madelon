@@ -28,15 +28,15 @@ async def async_setup_entry(
     success = await hass.async_add_executor_job(system._read_all_registers, True)
     _LOGGER.debug(f"Initial register read {'successful' if success else 'failed'}")
 
+    # Create switches even if the device is temporarily unavailable.
+    switches = [
+        MadelonAutoModeSwitch(entry, system),
+        MadelonBypassSwitch(entry, system),
+    ]
+
     if success:
         current_mode = system.mode
         _LOGGER.debug(f"Initial mode value: {current_mode}")
-
-        # Create switches
-        switches = [
-            MadelonAutoModeSwitch(entry, system),
-            MadelonBypassSwitch(entry, system),
-        ]
 
         # Set initial states
         for switch in switches:

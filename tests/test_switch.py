@@ -75,3 +75,30 @@ async def test_switch_entities(hass):
         # Unload the entry
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
+
+
+@pytest.mark.asyncio
+async def test_switch_entities_created_when_initial_read_fails(hass):
+    """Test switches are created while the device is temporarily offline."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"host": "127.0.0.1", "port": 8899, "unit_id": 1},
+        entry_id="test_entry",
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.madelon_ventilation.fresh_air_controller.ModbusTcpClient"
+    ) as mock_modbus:
+        client = mock_modbus.return_value
+        client.connect.return_value = False
+        client.connected = False
+
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        assert hass.states.get("switch.fresh_air_system_auto_mode") is not None
+        assert hass.states.get("switch.fresh_air_system_bypass") is not None
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
