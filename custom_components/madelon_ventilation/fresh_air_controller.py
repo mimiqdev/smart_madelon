@@ -1,12 +1,15 @@
+import logging
+import threading
+import time
 from enum import Enum
-from pymodbus.client import ModbusTcpClient
+
 from pymodbus import (
     ExceptionResponse,
     # pymodbus_apply_logging_config,
 )
-import logging
+from pymodbus.client import ModbusTcpClient
+
 from .const import DEFAULT_PORT, DEFAULT_UNIT_ID
-import time
 
 # Enable logging
 logging.basicConfig()
@@ -15,6 +18,8 @@ log.setLevel(logging.WARNING)
 
 
 class ModbusClient:
+    MIN_COMMUNICATION_INTERVAL = 0.2
+
     def __init__(self, host, port=DEFAULT_PORT, unit_id=DEFAULT_UNIT_ID):
         self.host = host
         self.port = port
@@ -24,6 +29,8 @@ class ModbusClient:
         self.retry_count = 3
         self.retry_delay = 1  # seconds
         self.connection_timeout = 10  # 连接超时时间（秒）
+        self._communication_lock = threading.Lock()
+        self._last_request_time = None
 
     def _ensure_connected(self):
         """Ensure connection is established with retry mechanism"""
@@ -53,15 +60,34 @@ class ModbusClient:
                 time.sleep(self.retry_delay)
         return False
 
+    def _execute_request(self, request):
+        """Serialize a request and enforce the device communication interval."""
+        with self._communication_lock:
+            if not self._ensure_connected() or self.client is None:
+                return None
+            client = self.client
+
+            now = time.monotonic()
+            if self._last_request_time is not None:
+                remaining = self.MIN_COMMUNICATION_INTERVAL - (
+                    now - self._last_request_time
+                )
+                if remaining > 0:
+                    time.sleep(remaining)
+                    now = time.monotonic()
+
+            self._last_request_time = now
+            return request(client)
+
     def read_registers(self, start_address, count):
         """Read multiple holding registers."""
         try:
-            if not self._ensure_connected():
-                return None
-            response = self.client.read_holding_registers(
-                address=start_address, count=count, device_id=self.unit_id
+            response = self._execute_request(
+                lambda client: client.read_holding_registers(
+                    address=start_address, count=count, device_id=self.unit_id
+                )
             )
-            if isinstance(response, ExceptionResponse):
+            if response is None or isinstance(response, ExceptionResponse):
                 self.logger.error(f"Error reading registers: {response}")
                 return None
             return response
@@ -72,12 +98,12 @@ class ModbusClient:
     def write_single_register(self, address, value):
         """Write a single register."""
         try:
-            if not self._ensure_connected():
-                return False
-            response = self.client.write_register(
-                address=address, value=value, device_id=self.unit_id
+            response = self._execute_request(
+                lambda client: client.write_register(
+                    address=address, value=value, device_id=self.unit_id
+                )
             )
-            if isinstance(response, ExceptionResponse):
+            if response is None or isinstance(response, ExceptionResponse):
                 self.logger.error(f"Error writing register: {response}")
                 return False
             return True
@@ -363,7 +389,9 @@ class FreshAirSystem:
     def bypass(self, state: bool):
         """设置旁通状态"""
         self.logger.debug(f"Setting bypass to: {state}")
-        self.modbus.write_single_register(self.REGISTERS["bypass"], int(state))
+        result = self.modbus.write_single_register(self.REGISTERS["bypass"], int(state))
+        if result:
+            self._update_cache_value("bypass", int(state))
 
     @property
     def actual_supply_speed(self):
